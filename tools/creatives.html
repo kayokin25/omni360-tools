@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сортировка креативов</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">подбор креативов под АП</div>
+    </div>
+  </div>
+
+  <h1>Сортировка креативов</h1>
+  <p class="subtitle">
+    Размеры видео читаются из самих файлов, а не из названий. Под каждую связку
+    «оператор + размер экрана» подбирается креатив с тем же соотношением сторон и размером
+    не меньше экрана; для Russ Outdoor — только точное совпадение.
+    На выходе архив без дублей и отчёт.
+  </p>
+
+  <div class="grid2">
+    <div>
+      <div class="section-label">Адресная программа</div>
+      <div class="drop" id="dropAp">
+        <div class="icon">📄</div>
+        <div class="main" id="apMain">Файл .xlsx</div>
+        <div class="sub" id="apSub">оператор, разрешение, GID</div>
+      </div>
+      <input type="file" id="fileAp" accept=".xlsx,.xlsm">
+    </div>
+    <div>
+      <div class="section-label">Креативы</div>
+      <div class="drop" id="dropCre">
+        <div class="icon">🎬</div>
+        <div class="main" id="creMain">Архив .zip или видеофайлы</div>
+        <div class="sub" id="creSub">вложенные zip тоже разбираются</div>
+      </div>
+      <input type="file" id="fileCre" accept=".zip,video/*" multiple>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="go" disabled>Подобрать креативы</button>
+    <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+  </div>
+
+  <div class="progress" id="prog">
+    <div class="bar indet" id="bar"><i></i></div>
+    <div class="progress-text" id="progText"></div>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="results" id="results">
+    <div class="divider"></div>
+    <div class="section-label">Результат</div>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="dlZip">Скачать архив с крео</button>
+      <button class="btn ghost" id="dlRep">Скачать отчёт .xlsx</button>
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:creatives-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, C = window.CreativesCore;
+const $ = function (id) { return document.getElementById(id); };
+
+let apFile = null, creInput = null, state = null, activeTab = 'send';
+
+/* ── выбор файлов ── */
+function wireDrop(dropId, inputId, onPick, multi) {
+  const drop = $(dropId), input = $(inputId);
+  drop.addEventListener('click', function () { input.click(); });
+  drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+  drop.addEventListener('drop', function (e) {
+    e.preventDefault(); drop.classList.remove('over');
+    const fs = e.dataTransfer.files;
+    if (fs && fs.length) onPick(multi ? [].slice.call(fs) : fs[0]);
+  });
+  input.addEventListener('change', function () {
+    const fs = input.files;
+    if (fs && fs.length) onPick(multi ? [].slice.call(fs) : fs[0]);
+  });
+}
+
+wireDrop('dropAp', 'fileAp', function (f) {
+  if (!/\.xlsx?$|\.xlsm$/i.test(f.name)) { log('Нужен файл .xlsx — выбран «' + f.name + '»', 'err'); return; }
+  apFile = f;
+  $('dropAp').classList.add('filled');
+  $('apMain').textContent = f.name;
+  $('apSub').textContent = (f.size / 1024).toFixed(0) + ' КБ';
+  checkReady();
+}, false);
+
+wireDrop('dropCre', 'fileCre', function (files) {
+  const zips = files.filter(function (f) { return /\.zip$/i.test(f.name); });
+  const vids = files.filter(function (f) { return C.VIDEO_EXTS.has(('.' + f.name.split('.').pop()).toLowerCase()); });
+  if (!zips.length && !vids.length) {
+    log('Не вижу ни архива .zip, ни видеофайлов среди выбранного', 'err');
+    return;
+  }
+  if (files.length === 1 && zips.length === 1) {
+    creInput = { kind: 'zip', source: L.blobSource(files[0]), label: files[0].name, bytes: files[0].size };
+    $('creSub').textContent = fmtSize(files[0].size) + ' — архив';
+  } else {
+    creInput = { kind: 'files', files: files, label: files.length + ' файлов',
+                 bytes: files.reduce(function (a, f) { return a + f.size; }, 0) };
+    $('creSub').textContent = fmtSize(creInput.bytes) + ' — ' + zips.length + ' арх., ' + vids.length + ' видео';
+  }
+  $('dropCre').classList.add('filled');
+  $('creMain').textContent = creInput.label;
+  checkReady();
+}, true);
+
+function checkReady() { $('go').disabled = !(apFile && creInput); }
+function fmtSize(b) {
+  if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' ГБ';
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' МБ';
+  return (b / 1024).toFixed(0) + ' КБ';
+}
+
+/* ── лог и прогресс ── */
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text, frac) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+  const bar = $('bar');
+  if (frac === undefined || frac === null) {
+    bar.classList.add('indet');
+    bar.firstElementChild.style.width = '';
+  } else {
+    bar.classList.remove('indet');
+    bar.firstElementChild.style.width = Math.round(frac * 100) + '%';
+  }
+}
+function yieldUi() { return new Promise(function (r) { setTimeout(r, 0); }); }
+
+/* ── запуск ── */
+$('go').addEventListener('click', async function () {
+  if (!apFile || !creInput) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+
+  try {
+    progress(true, 'Читаю адресную программу…', null);
+    await yieldUi();
+    const wb = await L.readXlsx(L.blobSource(apFile));
+    const ap = C.loadAp(wb);
+    log('АП: лист «' + ap.sheetName + '», шапка в строке ' + ap.headerRow +
+        ', поверхностей ' + ap.surfaces.length, 'ok');
+    if (ap.durMap.size) log('Длительностей по GID: ' + ap.durMap.size);
+
+    const noRes = ap.surfaces.filter(function (s) { return !s.wh; }).length;
+    if (noRes) log('Строк без разрешения (пропущены): ' + noRes, 'warn');
+
+    progress(true, 'Читаю креативы и определяю размеры…', null);
+    await yieldUi();
+    const t0 = Date.now();
+    let lastTick = 0;
+    const col = await C.collectCreatives(creInput, function (done, total, name) {
+      const now = Date.now();
+      if (now - lastTick > 120) {
+        lastTick = now;
+        progress(true, 'Читаю креативы: ' + done + (total ? ' из ' + total : '') + ' — ' + name,
+                 total ? done / total : null);
+      }
+    });
+    const creatives = col.creatives;
+    const known = creatives.filter(function (c) { return c.dims; }).length;
+    log('Видеофайлов найдено: ' + creatives.length + ' (размер прочитан у ' + known + ') за ' +
+        ((Date.now() - t0) / 1000).toFixed(1) + ' с', 'ok');
+    if (!creatives.length) throw new Error('Не нашёл ни одного видеофайла в выбранном источнике.');
+    if (col.skippedArchives.length) {
+      log('Пропущено вложенных архивов: ' + col.skippedArchives.length, 'warn');
+      col.skippedArchives.forEach(function (s) { log('   • ' + s, 'warn'); });
+    }
+
+    progress(true, 'Подбираю…', null);
+    await yieldUi();
+    const bt = C.buildTargets(ap.surfaces);
+    const unknown = C.match(bt.targets, creatives);
+    const rep = C.buildReport(bt.targets, unknown, creatives, col.skippedArchives);
+    log('Связок оператор × размер: ' + rep.stats.targets +
+        ' — закрыто ' + rep.stats.used + ', не хватает ' + rep.stats.missing, 'ok');
+
+    state = { ap: ap, creatives: creatives, targets: bt.targets, unknown: unknown,
+              rep: rep, skipped: col.skippedArchives };
+    progress(false);
+    activeTab = 'send';
+    render();
+    $('reset').style.display = '';
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('reset').addEventListener('click', function () {
+  apFile = null; creInput = null; state = null;
+  ['dropAp', 'dropCre'].forEach(function (id) { $(id).classList.remove('filled'); });
+  $('apMain').textContent = 'Файл .xlsx';
+  $('apSub').textContent = 'оператор, разрешение, GID';
+  $('creMain').textContent = 'Архив .zip или видеофайлы';
+  $('creSub').textContent = 'вложенные zip тоже разбираются';
+  $('fileAp').value = ''; $('fileCre').value = '';
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  $('reset').style.display = 'none';
+});
+
+/* ── отрисовка ── */
+const TABS = {
+  send:  { label: 'Отправка',     sheet: 0 },
+  miss:  { label: 'Не хватает',   sheet: 1 },
+  extra: { label: 'Лишние видео', sheet: 2 },
+  sum:   { label: 'Сводка',       sheet: 3 }
+};
+
+function render() {
+  const st = state.rep.stats;
+  $('tiles').innerHTML =
+    tile(st.targets, 'связок оператор × размер', '') +
+    tile(st.used, 'закрыто креативами', 'good') +
+    tile(st.missing, 'не хватает', st.missing ? 'bad' : '') +
+    tile(st.keep, 'файлов в архив', '') +
+    tile(st.creatives, 'видео просмотрено', '') +
+    (st.unknown ? tile(st.unknown, 'размер не прочитан', 'warn') : '');
+
+  let notes = '';
+  if (st.missing) {
+    notes += '<div class="note warn"><b>Не хватает ' + st.missing +
+      ' креативов.</b> Смотрите вкладку «Не хватает» — там указано, какое видео нужно запросить ' +
+      'под каждую связку.</div>';
+  } else {
+    notes += '<div class="note ok">Все связки закрыты — можно выгружать архив.</div>';
+  }
+  if (st.unknown) {
+    notes += '<div class="note err">У ' + st.unknown + ' видео не удалось прочитать размер. ' +
+      'Они не участвовали в подборе — проверьте эти файлы вручную (вкладка «Лишние видео»).</div>';
+  }
+  if (state.skipped.length) {
+    notes += '<div class="note warn"><b>Пропущены вложенные архивы (' + state.skipped.length +
+      '):</b><br>' + state.skipped.map(esc).join('<br>') + '</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tabs').innerHTML = Object.keys(TABS).map(function (k) {
+    const rows = state.rep.sheets[TABS[k].sheet].rows.length - 1;
+    return '<button class="tab' + (activeTab === k ? ' on' : '') + '" data-k="' + k + '">' +
+      TABS[k].label + ' <span class="cnt">' + rows + '</span></button>';
+  }).join('');
+  [...$('tabs').children].forEach(function (b) {
+    b.addEventListener('click', function () { activeTab = b.dataset.k; render(); });
+  });
+
+  const sheet = state.rep.sheets[TABS[activeTab].sheet];
+  const head = sheet.rows[0];
+  $('thead').innerHTML = head.map(function (h) { return '<th>' + esc(cellV(h)) + '</th>'; }).join('');
+
+  const numCols = new Set();
+  head.forEach(function (h, i) {
+    const s = String(cellV(h));
+    if (s === 'Кол-во ФО' || s === 'Значение') numCols.add(i);
+  });
+
+  $('tbody').innerHTML = sheet.rows.slice(1).map(function (r) {
+    const cls = activeTab === 'miss' ? ' class="miss"' : (activeTab === 'send' ? ' class="ok"' : '');
+    return '<tr' + cls + '>' + head.map(function (_, i) {
+      const v = cellV(r[i]);
+      const isNum = numCols.has(i);
+      return '<td class="' + (isNum ? 'num' : '') + (v === '' ? ' muted' : '') + '">' +
+        (v === '' ? '' : esc(v)) + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+
+  $('results').classList.add('on');
+}
+function cellV(c) {
+  if (c === null || c === undefined) return '';
+  return (typeof c === 'object') ? (c.v === null || c.v === undefined ? '' : c.v) : c;
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+
+/* ── выгрузка ── */
+$('dlRep').addEventListener('click', function () {
+  if (!state) return;
+  L.download(L.writeXlsx(state.rep.sheets), 'Отчет_подбор_крео.xlsx');
+});
+
+$('dlZip').addEventListener('click', async function () {
+  if (!state) return;
+  const btn = $('dlZip');
+  btn.disabled = true;
+  progress(true, 'Собираю архив…', 0);
+  try {
+    const z = await C.buildZip(state.targets, function (i, n, name) {
+      progress(true, 'Собираю архив: ' + i + ' из ' + n + ' — ' + name, i / n);
+    });
+    progress(false);
+    if (!z.count) { log('Нечего складывать в архив — ни одна связка не закрыта.', 'warn'); return; }
+    L.download(z.blob, 'Крео_для_загрузки.zip');
+    log('Архив собран: ' + z.count + ' файлов', 'ok');
+  } catch (e) {
+    progress(false);
+    log('Не удалось собрать архив: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+})();
+</script>
+</body>
+</html>

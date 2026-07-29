@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сбор технических требований</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">сбор технических требований</div>
+    </div>
+  </div>
+
+  <h1>Технические требования по АП</h1>
+  <p class="subtitle">
+    Загрузите адресную программу — инструмент определит длительность ролика для каждой связки
+    «оператор + формат», подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
+  </p>
+
+  <div class="section-label">Адресная программа</div>
+  <div class="drop" id="drop">
+    <div class="icon">📄</div>
+    <div class="main" id="dropMain">Выберите файл .xlsx или перетащите сюда</div>
+    <div class="sub" id="dropSub">лист и строка с шапкой определяются автоматически</div>
+  </div>
+  <input type="file" id="file" accept=".xlsx,.xlsm">
+
+  <div class="section-label">Папка с ТТ на Яндекс.Диске</div>
+  <div class="field">
+    <input type="text" id="yaKey" spellcheck="false">
+    <div class="hint">
+      Публичная ссылка на папку. Файлы внутри должны быть опубликованы по отдельности —
+      иначе постоянной ссылки на них нет. Имя файла задаёт привязку:
+      <code>Оператор 1920х1080</code>, <code>Оператор 2:1</code> или <code>Оператор общее</code>.
+    </div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;cursor:pointer;margin-bottom:4px">
+    <input type="checkbox" id="useYa" checked style="width:auto;accent-color:#00c6ff;cursor:pointer">
+    подтягивать ссылки на ТТ с Диска
+  </label>
+
+  <div class="btn-row">
+    <button class="btn" id="go" disabled>Собрать ТТ</button>
+    <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+  </div>
+
+  <div class="progress" id="prog">
+    <div class="bar indet"><i></i></div>
+    <div class="progress-text" id="progText"></div>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="results" id="results">
+    <div class="divider"></div>
+    <div class="section-label">Результат</div>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="dl">Скачать .xlsx</button>
+      <button class="btn ghost" id="copy">Копировать таблицу</button>
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:tt-data.js__*/
+</script>
+<script>
+/*__INJECT:tt-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, T = window.TTCore;
+const $ = function (id) { return document.getElementById(id); };
+
+let apFile = null, dedup = [], misses = new Set(), linkStats = null, activeTab = 'all';
+
+$('yaKey').value = T.DATA.YADISK_PUBLIC_KEY || '';
+
+/* ── выбор файла ── */
+const drop = $('drop'), fileInput = $('file');
+drop.addEventListener('click', function () { fileInput.click(); });
+drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+drop.addEventListener('drop', function (e) {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files.length) setFile(fileInput.files[0]);
+});
+
+function setFile(f) {
+  if (!/\.xlsx?$|\.xlsm$/i.test(f.name)) {
+    log('Нужен файл .xlsx — выбран «' + f.name + '»', 'err');
+    return;
+  }
+  apFile = f;
+  drop.classList.add('filled');
+  $('dropMain').textContent = f.name;
+  $('dropSub').textContent = (f.size / 1024).toFixed(0) + ' КБ — нажмите «Собрать ТТ»';
+  $('go').disabled = false;
+}
+
+/* ── лог и прогресс ── */
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + escapeHtml(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+}
+
+/* ── запуск ── */
+$('go').addEventListener('click', async function () {
+  if (!apFile) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  progress(true, 'Читаю адресную программу…');
+
+  try {
+    const wb = await L.readXlsx(L.blobSource(apFile));
+    const table = T.findApTable(wb);
+    if (!table) {
+      throw new Error('Не нашёл таблицу АП: нет строки с колонкой «Оператор» и знакомыми ' +
+        'заголовками (Формат экрана / Разрешение / Соотношение сторон / GID). Проверьте файл.');
+    }
+    log('Таблица найдена: лист «' + table.sheetName + '», строка шапки ' +
+        table.headerRow + ', строк данных ' + table.rows.length, 'ok');
+
+    let linker = null;
+    if ($('useYa').checked && $('yaKey').value.trim()) {
+      progress(true, 'Получаю ссылки с Яндекс.Диска…');
+      linker = new T.YandexDiskLinker($('yaKey').value.trim());
+      try {
+        await linker.fetchAll(function (n, total, path) {
+          progress(true, 'Яндекс.Диск: ' + n + (total ? ' из ' + total : '') + ' файлов…');
+        });
+        const pub = linker.files.length - linker.unpublished.length;
+        log('Диск: файлов ' + linker.files.length + ', с постоянной ссылкой ' + pub +
+            (linker.dirsSeen ? ', вложенных папок ' + linker.dirsSeen : ''), 'ok');
+        if (linker.unpublished.length) {
+          log('Не опубликованы по отдельности (' + linker.unpublished.length +
+              ') — ссылок на них не будет:', 'warn');
+          linker.unpublished.slice().sort().forEach(function (n) { log('   • ' + n, 'warn'); });
+        }
+      } catch (e) {
+        log('Ссылки не получены: ' + e.message, 'err');
+        log('Колонка «Ссылка на ТТ» останется пустой. Проверьте ссылку на папку и доступ в интернет.', 'warn');
+        linker = null;
+      }
+    } else {
+      log('Ссылки с Диска не запрашиваем — колонка «Ссылка на ТТ» будет пустой.', 'warn');
+    }
+
+    progress(true, 'Обрабатываю строки…');
+    const res = T.processAp(table, linker);
+    misses = res.durationMisses;
+    dedup = T.deduplicate(res.results);
+    log('Строк: ' + res.results.length + ' → после дедупликации ' + dedup.length +
+        ' (удалено дублей: ' + (res.results.length - dedup.length) + ')', 'ok');
+
+    const withDur = dedup.filter(function (r) { return r['Длительность (сек)'] !== ''; }).length;
+    const withLink = dedup.filter(function (r) { return r['Ссылка на ТТ']; }).length;
+    linkStats = { withDur: withDur, withLink: withLink, usedLinker: !!linker };
+    log('Длительность проставлена в ' + withDur + ' из ' + dedup.length + ' строк');
+    if (linker) log('Ссылки найдены для ' + withLink + ' из ' + dedup.length + ' строк');
+
+    progress(false);
+    render();
+    $('reset').style.display = '';
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('reset').addEventListener('click', function () {
+  apFile = null; dedup = []; misses = new Set(); linkStats = null;
+  drop.classList.remove('filled');
+  $('dropMain').textContent = 'Выберите файл .xlsx или перетащите сюда';
+  $('dropSub').textContent = 'лист и строка с шапкой определяются автоматически';
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  $('reset').style.display = 'none';
+  fileInput.value = '';
+});
+
+/* ── отрисовка результата ── */
+function render() {
+  const noLink = dedup.filter(function (r) { return !r['Ссылка на ТТ']; });
+  const noDur = dedup.filter(function (r) { return r['Длительность (сек)'] === ''; });
+
+  $('tiles').innerHTML =
+    tile(dedup.length, 'уникальных строк', 'good') +
+    tile(linkStats.withDur + ' / ' + dedup.length, 'с длительностью', noDur.length ? 'warn' : '') +
+    (linkStats.usedLinker
+      ? tile(linkStats.withLink + ' / ' + dedup.length, 'со ссылкой на ТТ', noLink.length ? 'warn' : '')
+      : '') +
+    (misses.size ? tile(misses.size, 'пар без длительности', 'bad') : '');
+
+  let notes = '';
+  if (misses.size) {
+    notes += '<div class="note warn"><b>Не нашлась длительность для ' + misses.size +
+      ' пар (оператор | формат):</b><br>' +
+      [...misses].sort().map(escapeHtml).join('<br>') +
+      '<br><br>Проверьте, что оператор и формат в АП записаны так же, как в справочнике ' +
+      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.).</div>';
+  }
+  if (linkStats.usedLinker && noLink.length) {
+    notes += '<div class="note info">Без ссылки — <b>' + noLink.length +
+      '</b> комбинаций. Если оператор есть на Диске, но ссылка не подтянулась — сверьте ' +
+      'написание оператора и разрешение в имени файла.</div>';
+  }
+  if (!misses.size && (!linkStats.usedLinker || !noLink.length)) {
+    notes += '<div class="note ok">Всё закрыто: длительности и ссылки найдены для всех строк.</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tabs').innerHTML =
+    tab('all', 'Все', dedup.length) +
+    (noLink.length ? tab('nolink', 'Без ссылки', noLink.length) : '') +
+    (noDur.length ? tab('nodur', 'Без длительности', noDur.length) : '');
+  [...$('tabs').children].forEach(function (b) {
+    b.addEventListener('click', function () { activeTab = b.dataset.k; render(); });
+  });
+
+  $('thead').innerHTML = T.COLUMNS.map(function (c) { return '<th>' + c + '</th>'; }).join('');
+
+  const rows = activeTab === 'nolink' ? noLink : activeTab === 'nodur' ? noDur : dedup;
+  $('tbody').innerHTML = rows.map(function (r) {
+    const bad = !r['Ссылка на ТТ'] || r['Длительность (сек)'] === '';
+    return '<tr class="' + (bad ? 'miss' : 'ok') + '">' +
+      '<td>' + escapeHtml(r['Оператор']) + '</td>' +
+      '<td class="nowrap">' + escapeHtml(r['Формат экрана']) + '</td>' +
+      '<td class="nowrap">' + escapeHtml(r['Разрешение']) + '</td>' +
+      '<td class="nowrap">' + escapeHtml(r['Соотношение сторон']) + '</td>' +
+      '<td class="num">' + (r['Длительность (сек)'] === ''
+        ? '<span class="muted">—</span>' : r['Длительность (сек)'] + ' с') + '</td>' +
+      '<td>' + (r['Ссылка на ТТ']
+        ? '<a href="' + escapeHtml(r['Ссылка на ТТ']) + '" target="_blank" rel="noopener">' +
+          escapeHtml(T.DATA.LINK_DISPLAY_TEXT || 'Открыть') + '</a>'
+        : '<span class="muted">нет</span>') + '</td></tr>';
+  }).join('');
+
+  $('results').classList.add('on');
+}
+
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+function tab(k, label, n) {
+  return '<button class="tab' + (activeTab === k ? ' on' : '') + '" data-k="' + k + '">' +
+    label + ' <span class="cnt">' + n + '</span></button>';
+}
+
+/* ── выгрузка ── */
+$('dl').addEventListener('click', function () {
+  if (!dedup.length) return;
+  const blob = L.writeXlsx(T.buildReport(dedup));
+  const base = apFile ? apFile.name.replace(/\.[^.]+$/, '') : 'ТТ';
+  L.download(blob, base + ' — ТТ.xlsx');
+});
+
+$('copy').addEventListener('click', async function () {
+  const lines = [T.COLUMNS.join('\t')];
+  for (const r of dedup) {
+    lines.push(T.COLUMNS.map(function (c) { return String(r[c] === undefined ? '' : r[c]); }).join('\t'));
+  }
+  const text = lines.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    $('copy').textContent = 'Скопировано ✓';
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+    $('copy').textContent = 'Скопировано ✓';
+  }
+  setTimeout(function () { $('copy').textContent = 'Копировать таблицу'; }, 1800);
+});
+
+})();
+</script>
+</body>
+</html>

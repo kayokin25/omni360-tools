@@ -1,0 +1,38 @@
+# Netlify раздаёт уже собранную папку dist — шага сборки на их стороне нет.
+# Панель собирается локально (`python build.py`) и коммитится вместе с dist/,
+# поэтому деплой не зависит от того, есть ли на билд-машине Python.
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+# Короткие адреса для прокси. Ключ 2ГИС подставляет функция из переменной
+# окружения GIS_API_KEY — в браузер он не попадает.
+[[redirects]]
+  from = "/api/2gis"
+  to = "/.netlify/functions/gis"
+  status = 200
+
+[[redirects]]
+  from = "/api/geocode"
+  to = "/.netlify/functions/geocode"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    # Панель не должна открываться внутри чужих страниц
+    X-Frame-Options = "SAMEORIGIN"
+
+# Панель — один файл, ревизии меняются целиком: не кэшируем, чтобы у людей
+# не оставалась старая версия после деплоя.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/tools/*"
+  [headers.values]
+    Cache-Control = "no-cache"

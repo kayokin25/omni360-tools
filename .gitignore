@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# вывод тестов (lib/test_*.mjs, lib/diff_*.py)
+lib/out_*.xlsx
+lib/out_*.zip
+lib/py_ref/
+lib/ya.json
+
+# node
+node_modules/
+
+# Netlify CLI
+.netlify/
+
+# мусор ОС
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# временные файлы Excel
+~$*

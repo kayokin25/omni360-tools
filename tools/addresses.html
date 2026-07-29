@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Подбор адресов</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">подбор адресов через 2ГИС</div>
+    </div>
+  </div>
+
+  <h1>Подбор адресов</h1>
+  <p class="subtitle">
+    Город разбивается на сетку секторов, по каждому идёт запрос в справочник 2ГИС —
+    так набирается больше объектов, чем за один поиск. Дубли по координатам убираются.
+  </p>
+
+  <div class="section-label">Что искать</div>
+  <div class="grid2">
+    <div class="field">
+      <label>Запрос</label>
+      <input type="text" id="query" placeholder="КанАвто" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Город</label>
+      <input type="text" id="city" placeholder="Казань" spellcheck="false">
+    </div>
+  </div>
+
+  <div class="section-label">Параметры поиска</div>
+  <div class="grid3">
+    <div class="field">
+      <label>Сетка (GRID × GRID)</label>
+      <input type="number" id="grid" min="1" max="12" step="1">
+      <div class="hint" id="gridHint"></div>
+    </div>
+    <div class="field">
+      <label>Область поиска, °</label>
+      <input type="number" id="span" min="0.02" max="1.5" step="0.05">
+      <div class="hint">0.3 ≈ 33 км — крупный город; 0.1 ≈ 11 км — небольшой</div>
+    </div>
+    <div class="field">
+      <label>Радиус сектора, м</label>
+      <input type="number" id="radius" min="500" max="40000" step="500">
+      <div class="hint">перекрытие секторов — это нормально, дубли уберутся</div>
+    </div>
+  </div>
+
+  <details style="margin-top:4px" id="keyBlock">
+    <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none">Ключ API 2ГИС</summary>
+    <div class="field" style="margin-top:10px">
+      <input type="text" id="apiKey" spellcheck="false" placeholder="вставьте ключ с dev.2gis.ru">
+      <div class="hint">Ключ сохранится в этом браузере и больше спрашиваться не будет.
+        На бесплатном тарифе — до 10 объектов на страницу и до 5 страниц на сектор.</div>
+    </div>
+  </details>
+  <div class="hint" id="proxyNote" style="display:none;margin-top:6px">
+    Ключ 2ГИС хранится на сервере панели — вводить ничего не нужно.
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="go">Искать</button>
+    <button class="btn ghost" id="stop" style="display:none">Остановить</button>
+  </div>
+
+  <div class="progress" id="prog">
+    <div class="bar" id="bar"><i></i></div>
+    <div class="progress-text" id="progText"></div>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="results" id="results">
+    <div class="divider"></div>
+    <div class="section-label">Результат</div>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:60%">Название</th><th>Широта</th><th>Долгота</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="dl">Скачать .xlsx</button>
+      <button class="btn ghost" id="copy">Копировать таблицу</button>
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК · данные © 2ГИС, OpenStreetMap</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:addresses-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, A = window.AddressesCore;
+const $ = function (id) { return document.getElementById(id); };
+
+let result = null, abort = null;
+
+const KEY_STORE = 'omni360.gisApiKey';
+
+/* Через прокси ключ вообще не нужен — прячем поле.
+   В прямом режиме подставляем сохранённый ранее ключ. */
+if (A.usesProxy()) {
+  $('keyBlock').style.display = 'none';
+  $('proxyNote').style.display = '';
+} else {
+  let saved = '';
+  try { saved = localStorage.getItem(KEY_STORE) || ''; } catch (e) { /* приватный режим */ }
+  $('apiKey').value = saved || A.DEFAULTS.API_KEY;
+  $('apiKey').addEventListener('change', function () {
+    try { localStorage.setItem(KEY_STORE, $('apiKey').value.trim()); } catch (e) { /* не судьба */ }
+  });
+  if (!$('apiKey').value) $('keyBlock').open = true;
+}
+
+$('grid').value = A.DEFAULTS.GRID;
+$('span').value = A.DEFAULTS.SEARCH_SPAN;
+$('radius').value = A.DEFAULTS.SECTOR_RADIUS;
+
+function updateGridHint() {
+  const g = parseInt($('grid').value, 10) || 1;
+  const max = g * g * A.DEFAULTS.PAGE_SIZE * A.DEFAULTS.MAX_PAGES;
+  $('gridHint').textContent = g * g + ' секторов, до ' + max + ' объектов';
+}
+$('grid').addEventListener('input', updateGridHint);
+updateGridHint();
+
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text, frac) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+  if (frac !== undefined && frac !== null) $('bar').firstElementChild.style.width = Math.round(frac * 100) + '%';
+}
+
+$('go').addEventListener('click', async function () {
+  const query = $('query').value.trim();
+  const city = $('city').value.trim();
+  if (!query) { log('Укажите, что искать', 'err'); $('query').focus(); return; }
+  if (!city) { log('Укажите город', 'err'); $('city').focus(); return; }
+  if (!A.usesProxy() && !$('apiKey').value.trim()) {
+    log('Нужен ключ API 2ГИС — раскройте «Ключ API 2ГИС» и вставьте его', 'err');
+    $('keyBlock').open = true;
+    $('apiKey').focus();
+    return;
+  }
+
+  const cfg = {
+    API_KEY: $('apiKey').value.trim() || A.DEFAULTS.API_KEY,
+    QUERY: query,
+    CITY: city,
+    GRID: Math.max(1, Math.min(12, parseInt($('grid').value, 10) || A.DEFAULTS.GRID)),
+    SEARCH_SPAN: parseFloat($('span').value) || A.DEFAULTS.SEARCH_SPAN,
+    SECTOR_RADIUS: parseInt($('radius').value, 10) || A.DEFAULTS.SECTOR_RADIUS,
+    PAGE_SIZE: A.DEFAULTS.PAGE_SIZE,
+    MAX_PAGES: A.DEFAULTS.MAX_PAGES
+  };
+
+  $('go').disabled = true;
+  $('stop').style.display = '';
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  progress(true, 'Определяю координаты города…', 0);
+
+  abort = new AbortController();
+  try {
+    result = await A.run(cfg, {
+      signal: abort.signal,
+      onLog: log,
+      onProgress: function (done, total, found) {
+        progress(true, 'Сектор ' + done + ' из ' + total + ' — найдено ' + found + ' объектов',
+                 done / total);
+      }
+    });
+    log('Собрано с дублями: ' + result.rawCount + ' → уникальных: ' + result.results.length, 'ok');
+    log('С адресом: ' + result.withAddress + ', без адреса: ' + result.withoutAddress);
+    progress(false);
+    render(cfg);
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+    $('stop').style.display = 'none';
+    abort = null;
+  }
+});
+
+$('stop').addEventListener('click', function () {
+  if (abort) { abort.abort(); log('Останавливаю…', 'warn'); }
+});
+
+function render(cfg) {
+  const n = result.results.length;
+  $('tiles').innerHTML =
+    tile(n, 'уникальных объектов', n ? 'good' : 'bad') +
+    tile(result.sectors, 'секторов обойдено', '') +
+    tile(result.rawCount, 'найдено с дублями', '') +
+    tile(result.withoutAddress, 'без адреса', result.withoutAddress ? 'warn' : '');
+
+  let notes = '';
+  if (!n) {
+    notes = '<div class="note warn">Ничего не найдено. Проверьте запрос и город, либо увеличьте ' +
+      'область поиска и сетку.</div>';
+  } else {
+    const cap = cfg.GRID * cfg.GRID * cfg.PAGE_SIZE * cfg.MAX_PAGES;
+    if (result.rawCount >= cap * 0.9) {
+      notes += '<div class="note warn">Похоже, упёрлись в лимит выдачи (' + cap +
+        ' объектов при сетке ' + cfg.GRID + '×' + cfg.GRID + '). Часть объектов могла не попасть — ' +
+        'увеличьте сетку.</div>';
+    }
+    notes += '<div class="note info">Центр города: ' + esc(result.city.displayName) + '</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tbody').innerHTML = result.results.map(function (r) {
+    const q = r.lat + '%2C' + r.lon;
+    return '<tr>' +
+      '<td' + (r.address ? '' : ' class="muted"') + '>' + (r.address ? esc(r.address) : 'без адреса') + '</td>' +
+      '<td class="num">' + r.lat.toFixed(6) + '</td>' +
+      '<td class="num">' + r.lon.toFixed(6) + '</td>' +
+      '<td class="nowrap"><a href="https://yandex.ru/maps/?pt=' + r.lon + ',' + r.lat +
+        '&z=17&l=map" target="_blank" rel="noopener">карта</a></td>' +
+      '</tr>';
+  }).join('');
+
+  $('results').classList.add('on');
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+
+$('dl').addEventListener('click', function () {
+  if (!result || !result.results.length) return;
+  const blob = L.writeXlsx(A.buildReport(result.results));
+  const name = ($('city').value.trim() + ' - ' + $('query').value.trim())
+    .replace(/[\\/:*?"<>|]/g, '_');
+  L.download(blob, name + '.xlsx');
+});
+
+$('copy').addEventListener('click', async function () {
+  if (!result) return;
+  const lines = ['Название\tШирота\tДолгота'];
+  for (const r of result.results) {
+    lines.push(r.address + '\t' + r.lat.toFixed(6) + '\t' + r.lon.toFixed(6));
+  }
+  const text = lines.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  $('copy').textContent = 'Скопировано ✓';
+  setTimeout(function () { $('copy').textContent = 'Копировать таблицу'; }, 1800);
+});
+
+['query', 'city'].forEach(function (id) {
+  $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
+});
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+# -*- coding: utf-8 -*-
+"""
+Сборка панели инструментов Omni360 в один offline-HTML.
+
+1) Собирает каждый инструмент в самостоятельный HTML (инлайнит lib/*).
+2) Пересобирает bundle: добавляет три инструмента в manifest + ext_resources
+   и переключает их карточки в шаблоне с заметки на iframe.
+
+Запуск:  python build.py
+"""
+import base64
+import gzip
+import hashlib
+import json
+import os
+import re
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+LIB = os.path.join(HERE, 'lib')
+TOOLS = os.path.join(HERE, 'tools')
+DIST = os.path.join(HERE, 'dist')
+
+BUNDLE_NAME = 'Omni360 - Панель инструментов (offline).html'
+
+# Исходная панель БЕЗ наших инструментов (только калькулятор и карта).
+# Лежит рядом, в source/ — чтобы сборку можно было повторить в любой момент,
+# не завися от того, что сейчас в Downloads.
+SRC_BUNDLE = os.path.join(HERE, 'source', BUNDLE_NAME)
+
+# id ресурса в bundle → файл инструмента
+NEW_TOOLS = [
+    ('techreqTool',   'techreq.html'),
+    ('creativesTool', 'creatives.html'),
+    ('addressesTool', 'addresses.html'),
+]
+
+INJECT_RE = re.compile(r'/\*__INJECT:([A-Za-z0-9_.\-]+)__\*/')
+
+# Инструмент «Подбор адресов» ходит за данными через функции Netlify
+# (netlify/functions/*.mjs). Ключ 2ГИС лежит в переменной окружения GIS_API_KEY
+# на Netlify: ни в репозитории, ни в исходнике страницы его нет, и вводить
+# пользователю ничего не нужно.
+ENDPOINTS = {'mode': 'proxy', 'gis': '/api/2gis', 'geocode': '/api/geocode'}
+
+
+def endpoints_js():
+    """JS-настройка эндпоинтов, вставляется перед addresses-core.js."""
+    return 'window.OMNI_ENDPOINTS = ' + json.dumps(ENDPOINTS, ensure_ascii=False) + ';'
+
+
+def read(p):
+    with open(p, encoding='utf-8') as f:
+        return f.read()
+
+
+def build_tool(filename):
+    """Инлайнит /*__INJECT:file__*/ содержимым lib/file."""
+    src = read(os.path.join(TOOLS, filename))
+    used = []
+
+    def sub(m):
+        name = m.group(1)
+        path = os.path.join(LIB, name)
+        if not os.path.exists(path):
+            raise SystemExit(f'{filename}: нет файла для вставки: lib/{name}')
+        used.append(name)
+        text = read(path)
+        # настройку эндпоинтов кладём перед ядром адресов
+        if name == 'addresses-core.js':
+            text = endpoints_js() + '\n' + text
+        # чтобы вставленный код не закрыл наш <script> раньше времени
+        return text.replace('</script>', '<\\/script>')
+
+    out = INJECT_RE.sub(sub, src)
+    left = INJECT_RE.findall(out)
+    if left:
+        raise SystemExit(f'{filename}: остались невставленные метки: {left}')
+
+    # В отдельном инструменте никаких uuid быть не должно — а ключ 2ГИС выглядит
+    # именно как uuid. Так что любое совпадение здесь — утечка секрета.
+    m = re.search(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b', out)
+    if m:
+        raise SystemExit(
+            f'{filename}: в собранный файл попал похожий на ключ API идентификатор '
+            f'{m.group(0)} — уберите его, репозиторий публичный')
+    return out, used
+
+
+# Старый ключ 2ГИС из script.py задан хешем, а не текстом: сам файл лежит
+# в публичном репозитории, и держать в нём секрет ради проверки на секреты
+# было бы странно.
+LEAKED_KEY_SHA256 = '7e84bf8a62f25f99f9c63150139e4648e2004d410d1bc6400fdea05302d55ce0'
+
+UUID_RE = re.compile(r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b')
+
+
+def check_no_secrets(path):
+    """В панели куча законных uuid ресурсов, поэтому проверяем каждый по списку.
+    Ключ API выглядит как uuid, так что любой незнакомый — повод остановиться."""
+    blob = read(path)
+    known = set(UUIDS.values()) | KNOWN_BUNDLE_UUIDS
+    for m in UUID_RE.finditer(blob):
+        val = m.group(0)
+        if val in known:
+            continue
+        if hashlib.sha256(val.encode()).hexdigest() == LEAKED_KEY_SHA256:
+            raise SystemExit(
+                f'{os.path.basename(path)}: внутри старый ключ 2ГИС — коммитить нельзя. '
+                'Ключ должен жить только в переменной GIS_API_KEY на Netlify.')
+        raise SystemExit(
+            f'{os.path.basename(path)}: неизвестный uuid {val} — проверьте, не ключ ли это')
+
+
+# детерминированные uuid для новых ресурсов bundle
+UUIDS = {
+    'techreqTool':   '7c1f9a20-4d3b-4f57-9e1a-2b8c6d0f3a41',
+    'creativesTool': '9b2e7c31-5f4a-4c68-8d2b-3e7f1a9c4b52',
+    'addressesTool': 'a3d5f842-6e1b-4d79-9c3e-4f8a2b6d5c63',
+}
+
+# uuid ресурсов, которые были в исходной панели (калькулятор, карта, react, рантайм).
+# Заполняется при чтении исходника — нужно, чтобы проверка на секреты их не путала с ключом.
+KNOWN_BUNDLE_UUIDS = set()
+
+
+def make_bundle(built):
+    """Собирает панель, встраивая переданные HTML инструментов. Возвращает текст файла."""
+    lines = read(SRC_BUNDLE).split('\n')
+    # индексы строк с данными (проверяем по маркерам, а не по номерам)
+    idx = {}
+    for i, ln in enumerate(lines):
+        m = re.search(r'<script type="__bundler/(manifest|ext_resources|page_order|template)">', ln)
+        if m:
+            idx[m.group(1)] = i + 1        # данные — на следующей строке
+    for k in ('manifest', 'ext_resources', 'template'):
+        if k not in idx:
+            raise SystemExit(f'не нашёл в bundle секцию {k}')
+
+    manifest = json.loads(lines[idx['manifest']])
+    ext = json.loads(lines[idx['ext_resources']])
+    template = json.loads(lines[idx['template']])
+
+    KNOWN_BUNDLE_UUIDS.update(manifest.keys())
+
+    for u in UUIDS.values():
+        if u in manifest:
+            raise SystemExit(f'uuid уже занят в manifest: {u}')
+
+    existing_ids = {e['id'] for e in ext}
+    for res_id, _fn in NEW_TOOLS:
+        html = built[res_id]
+        uuid = UUIDS[res_id]
+        raw = html.encode('utf-8')
+        gz = gzip.compress(raw, 9, mtime=0)
+        manifest[uuid] = {
+            'mime': 'text/html',
+            'compressed': True,
+            'data': base64.b64encode(gz).decode('ascii'),
+        }
+        if res_id in existing_ids:
+            for e in ext:
+                if e['id'] == res_id:
+                    e['uuid'] = uuid
+        else:
+            ext.append({'id': res_id, 'uuid': uuid})
+
+    # ── шаблон: карточки трёх инструментов получают src вместо note ──
+    replacements = [
+        (
+            "{ id:'techreq', name:'Сбор технических требований', desc:'Сбор ТТ по адресной программе', "
+            "type:'internal', letter:'Т', note:'Скрипт на Python. Загрузите адресную программу — "
+            "инструмент подготовит техтребования для площадок.' }",
+            "{ id:'techreq', name:'Сбор технических требований', desc:'Длительности роликов и ссылки "
+            "на ТТ по адресной программе', type:'internal', get src(){ return window.__resources ? "
+            "window.__resources.techreqTool : 'techreq.html'; }, letter:'Т' }"
+        ),
+        (
+            "{ id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива "
+            "по адресной программе', type:'internal', letter:'С', note:'Скрипт на Python. Нужны: архив "
+            "с креативами и адресная программа — на выходе только нужные для загрузки файлы.' }",
+            "{ id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива "
+            "по адресной программе', type:'internal', get src(){ return window.__resources ? "
+            "window.__resources.creativesTool : 'creatives.html'; }, letter:'С' }"
+        ),
+        (
+            "{ id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', "
+            "type:'internal', letter:'А', note:'Скрипт на Python. На входе — запрос + город, на выходе — "
+            "список POI из 2ГИС для импорта.' }",
+            "{ id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', "
+            "type:'internal', get src(){ return window.__resources ? "
+            "window.__resources.addressesTool : 'addresses.html'; }, letter:'А' }"
+        ),
+    ]
+    for old, new in replacements:
+        if old not in template:
+            raise SystemExit('не нашёл в шаблоне строку карточки:\n' + old[:120])
+        template = template.replace(old, new, 1)
+
+    def dump(obj):
+        """JSON для вставки внутрь <script>…</script>.
+
+        Обязательно экранируем '</' как '<\\u002F' — иначе парсер HTML закроет
+        наш script-тег на первом же '</script>' внутри данных и JSON оборвётся.
+        Ровно так же сделано в исходном bundle.
+        """
+        s = json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
+        return s.replace('</', '<\\u002F')
+
+    lines[idx['manifest']] = dump(manifest)
+    lines[idx['ext_resources']] = dump(ext)
+    lines[idx['template']] = dump(template)
+
+    # ── самопроверка: данные не должны рвать script-тег и должны парситься ──
+    for key, want in (('manifest', manifest), ('ext_resources', ext), ('template', template)):
+        line = lines[idx[key]]
+        if '</' in line:
+            raise SystemExit(f'{key}: в данных остался "</" — HTML закроет script-тег раньше времени')
+        if '\n' in line or '\r' in line:
+            raise SystemExit(f'{key}: в данных перевод строки — bundle читает ровно одну строку')
+        if json.loads(line) != want:
+            raise SystemExit(f'{key}: JSON не совпал после кодирования')
+
+    return '\n'.join(lines), len(manifest), len(ext)
+
+
+def main():
+    if not os.path.exists(SRC_BUNDLE):
+        raise SystemExit(
+            f'нет исходной панели: {SRC_BUNDLE}\n'
+            'Положи туда версию БЕЗ трёх новых инструментов (с карточками note:).')
+
+    os.makedirs(os.path.join(DIST, 'tools'), exist_ok=True)
+
+    print('── сборка инструментов ──')
+    web = {}
+    for res_id, fn in NEW_TOOLS:
+        html, used = build_tool(fn)
+        web[res_id] = html
+        with open(os.path.join(DIST, 'tools', fn), 'w', encoding='utf-8') as f:
+            f.write(html)
+        print(f'  {fn:16} {len(html):>7} символов  ← {", ".join(used)}')
+
+    index_html, n_man, n_ext = make_bundle(web)
+    index_path = os.path.join(DIST, 'index.html')
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(index_html)
+    print(f'  панель: manifest {n_man} ресурсов, ext_resources {n_ext}')
+
+    # ── ключа не должно быть ни в одном артефакте: репозиторий публичный ──
+    check_no_secrets(index_path)
+    print('  проверка: ключей API в собранных файлах нет')
+
+    print()
+    print('готово:')
+    print(f'  панель   {index_path}  ({os.path.getsize(index_path) / 1024:.0f} КБ)')
+    print(f'  отдельно {os.path.join(DIST, "tools")}')
+    print()
+    print('Ключ 2ГИС задаётся переменной GIS_API_KEY в настройках Netlify.')
+
+
+if __name__ == '__main__':
+    main()

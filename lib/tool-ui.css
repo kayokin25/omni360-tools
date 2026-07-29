@@ -1,0 +1,174 @@
+/* Общий стиль инструментов панели Omni360 (один язык с калькулятором OmniBuy) */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0a0e1a;
+  min-height: 100vh;
+  padding: 24px;
+  color: #f1f5f9;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { width: 100%; max-width: 980px; margin: 0 auto; }
+
+.card {
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .4);
+}
+
+/* ── шапка ── */
+.logo { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, #00c6ff, #7bed9f); flex: none; }
+.logo-text { font-size: 18px; font-weight: 700; background: linear-gradient(90deg, #00c6ff, #7bed9f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: #64748b; margin-bottom: 26px; line-height: 1.5; }
+
+.section-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .8px; color: #475569; margin: 24px 0 12px;
+}
+.section-label:first-of-type { margin-top: 0; }
+
+.divider { height: 1px; background: #1e293b; margin: 24px 0; }
+
+/* ── поля ── */
+.field { margin-bottom: 14px; }
+label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+.hint { font-size: 11.5px; color: #475569; margin-top: 5px; line-height: 1.45; }
+
+input[type=text], input[type=number], select {
+  width: 100%; background: #1e293b; border: 1px solid #334155;
+  border-radius: 10px; color: #f1f5f9; font-size: 14px;
+  padding: 10px 13px; outline: none; transition: border-color .15s;
+  font-family: inherit;
+}
+input[type=text]:focus, input[type=number]:focus, select:focus { border-color: #00c6ff; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+/* ── зона выбора файла ── */
+.drop {
+  border: 1.5px dashed #334155; border-radius: 14px; padding: 22px 20px;
+  text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  background: #0f172a;
+}
+.drop:hover, .drop.over { border-color: #00c6ff; background: #101c31; }
+.drop .icon { font-size: 22px; margin-bottom: 8px; opacity: .85; }
+.drop .main { font-size: 13.5px; color: #cbd5e1; font-weight: 500; }
+.drop .sub { font-size: 11.5px; color: #475569; margin-top: 5px; }
+.drop.filled { border-style: solid; border-color: #1e4d40; background: linear-gradient(135deg, #0d2440, #0d2e20); }
+.drop.filled .main { color: #7bed9f; }
+input[type=file] { display: none; }
+
+/* ── кнопки ── */
+.btn {
+  background: linear-gradient(135deg, #00c6ff, #7bed9f); border: none;
+  color: #05121f; font-size: 14px; font-weight: 700; padding: 12px 22px;
+  border-radius: 11px; cursor: pointer; transition: transform .12s, filter .15s;
+  font-family: inherit;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.ghost {
+  background: #1e293b; border: 1px solid #334155; color: #cbd5e1; font-weight: 600;
+}
+.btn.ghost:hover:not(:disabled) { border-color: #00c6ff; color: #f1f5f9; filter: none; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+
+/* ── прогресс ── */
+.progress { margin-top: 18px; display: none; }
+.progress.on { display: block; }
+.bar { height: 6px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+.bar > i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, #00c6ff, #7bed9f);
+  border-radius: 99px; transition: width .2s;
+}
+.bar.indet > i { width: 35%; animation: slide 1.1s ease-in-out infinite; }
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.progress-text { font-size: 12px; color: #94a3b8; margin-top: 8px; min-height: 16px; }
+
+.log {
+  margin-top: 12px; background: #0b1220; border: 1px solid #1e293b; border-radius: 10px;
+  padding: 10px 12px; font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #94a3b8; max-height: 170px; overflow: auto; white-space: pre-wrap;
+  word-break: break-word; display: none;
+}
+.log.on { display: block; }
+.log b { color: #7bed9f; font-weight: 600; }
+.log i { color: #fbbf24; font-style: normal; }
+.log s { color: #f87171; text-decoration: none; }
+
+/* ── плитки статистики ── */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.tile { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 13px 15px; }
+.tile .v { font-size: 21px; font-weight: 800; color: #f1f5f9; line-height: 1.15; }
+.tile .k { font-size: 10.5px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.tile.good .v { background: linear-gradient(90deg, #00c6ff, #7bed9f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.tile.warn .v { color: #fbbf24; }
+.tile.bad .v { color: #f87171; }
+
+/* ── таблица ── */
+.table-wrap { border: 1px solid #1e293b; border-radius: 12px; overflow: auto; max-height: 440px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead th {
+  position: sticky; top: 0; z-index: 1; background: #0f172a; color: #64748b;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  text-align: left; padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap;
+}
+tbody td { padding: 9px 12px; border-bottom: 1px solid #161f33; color: #cbd5e1; vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #151d30; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
+td.muted { color: #64748b; }
+tbody tr.miss td { background: #1f1417; }
+tbody tr.miss:hover td { background: #2a1a1e; }
+tbody tr.miss td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
+tbody tr.ok td:first-child { box-shadow: inset 3px 0 0 #15803d; }
+a { color: #4f8cff; text-decoration: none; }
+a:hover { color: #7bed9f; text-decoration: underline; }
+
+/* ── сообщения ── */
+.note {
+  border-radius: 12px; padding: 13px 16px; font-size: 12.5px; line-height: 1.55;
+  margin-bottom: 16px; border: 1px solid;
+}
+.note.info { background: #0d1b2e; border-color: #1e3a5f; color: #93c5fd; }
+.note.warn { background: #241a08; border-color: #57400f; color: #fbbf24; }
+.note.err { background: #2a1215; border-color: #5c2b2e; color: #ff8a80; }
+.note.ok { background: #0d2018; border-color: #1e4d40; color: #7bed9f; }
+.note b { font-weight: 700; }
+.note code { font: 11.5px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; }
+
+.results { display: none; }
+.results.on { display: block; }
+
+/* ── табы ── */
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.tab {
+  background: #0f172a; border: 1px solid #1e293b; color: #64748b;
+  font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 9px;
+  cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.tab:hover { color: #cbd5e1; border-color: #334155; }
+.tab.on { background: #1e293b; color: #f1f5f9; border-color: #475569; }
+.tab .cnt { color: #475569; font-weight: 500; }
+.tab.on .cnt { color: #94a3b8; }
+
+.footer { margin-top: 22px; text-align: center; font-size: 11px; color: #334155; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: #0b1220; }
+::-webkit-scrollbar-thumb { background: #283449; border-radius: 9px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4a63; }
