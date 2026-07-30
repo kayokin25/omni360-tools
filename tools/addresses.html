@@ -7,6 +7,9 @@
 <style>
 /*__INJECT:tool-ui.css__*/
 </style>
+<script>
+/*__INJECT:theme.js__*/
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -22,8 +25,10 @@
 
   <h1>Подбор адресов</h1>
   <p class="subtitle">
-    Город разбивается на сетку секторов, по каждому идёт запрос в справочник 2ГИС —
-    так набирается больше объектов, чем за один поиск. Дубли по координатам убираются.
+    Собирает объекты из справочника 2ГИС двумя проходами — широким поиском от центра
+    города и обходом по сетке — и объединяет результат. Так находится заметно больше,
+    чем любым проходом по отдельности: справочник отдаёт разные объекты в зависимости
+    от точки и радиуса поиска.
   </p>
 
   <div class="section-label">Что искать</div>
@@ -37,32 +42,42 @@
       <input type="text" id="city" placeholder="Казань" spellcheck="false">
     </div>
   </div>
+  <div class="note warn" style="margin-top:-2px">
+    За один раз — <b>один запрос и один город</b>. Списки через запятую
+    («Пятёрочка, Магнит» или «Казань, Уфа») справочник воспримет как одну строку
+    и вернёт ерунду. Нужно несколько — прогоните по очереди.
+  </div>
 
-  <div class="section-label">Параметры поиска</div>
+  <div class="section-label">Параметры</div>
   <div class="grid3">
     <div class="field">
-      <label>Сетка (GRID × GRID)</label>
-      <input type="number" id="grid" min="1" max="12" step="1">
+      <label>Радиус широкого поиска, км</label>
+      <input type="number" id="radius" min="1" max="40" step="1">
+      <div class="hint">Максимум 40 км — предел API.</div>
+    </div>
+    <div class="field">
+      <label>Сетка обхода</label>
+      <select id="grid">
+        <option value="0">только широкий поиск — быстро</option>
+        <option value="4">4×4 — 16 точек</option>
+        <option value="6">6×6 — 36 точек</option>
+        <option value="8">8×8 — 64 точки</option>
+      </select>
       <div class="hint" id="gridHint"></div>
     </div>
     <div class="field">
-      <label>Область поиска, °</label>
-      <input type="number" id="span" min="0.02" max="1.5" step="0.05">
-      <div class="hint">0.3 ≈ 33 км — крупный город; 0.1 ≈ 11 км — небольшой</div>
-    </div>
-    <div class="field">
-      <label>Радиус сектора, м</label>
-      <input type="number" id="radius" min="500" max="40000" step="500">
-      <div class="hint">перекрытие секторов — это нормально, дубли уберутся</div>
+      <label>Максимум объектов</label>
+      <input type="number" id="maxResults" min="50" max="20000" step="50">
+      <div class="hint">Предохранитель от общих запросов: «магазин» по Москве —
+        больше 20 000 объектов.</div>
     </div>
   </div>
 
   <details style="margin-top:4px" id="keyBlock">
-    <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none">Ключ API 2ГИС</summary>
+    <summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Ключ API 2ГИС</summary>
     <div class="field" style="margin-top:10px">
       <input type="text" id="apiKey" spellcheck="false" placeholder="вставьте ключ с dev.2gis.ru">
-      <div class="hint">Ключ сохранится в этом браузере и больше спрашиваться не будет.
-        На бесплатном тарифе — до 10 объектов на страницу и до 5 страниц на сектор.</div>
+      <div class="hint">Ключ сохранится в этом браузере и больше спрашиваться не будет.</div>
     </div>
   </details>
   <div class="hint" id="proxyNote" style="display:none;margin-top:6px">
@@ -119,8 +134,7 @@ let result = null, abort = null;
 
 const KEY_STORE = 'omni360.gisApiKey';
 
-/* Через прокси ключ вообще не нужен — прячем поле.
-   В прямом режиме подставляем сохранённый ранее ключ. */
+/* Через прокси ключ вообще не нужен — прячем поле. */
 if (A.usesProxy()) {
   $('keyBlock').style.display = 'none';
   $('proxyNote').style.display = '';
@@ -134,16 +148,17 @@ if (A.usesProxy()) {
   if (!$('apiKey').value) $('keyBlock').open = true;
 }
 
-$('grid').value = A.DEFAULTS.GRID;
-$('span').value = A.DEFAULTS.SEARCH_SPAN;
-$('radius').value = A.DEFAULTS.SECTOR_RADIUS;
+$('radius').value = A.DEFAULTS.RADIUS / 1000;
+$('maxResults').value = A.DEFAULTS.MAX_RESULTS;
+$('grid').value = String(A.DEFAULTS.GRID);
 
 function updateGridHint() {
-  const g = parseInt($('grid').value, 10) || 1;
-  const max = g * g * A.DEFAULTS.PAGE_SIZE * A.DEFAULTS.MAX_PAGES;
-  $('gridHint').textContent = g * g + ' секторов, до ' + max + ' объектов';
+  const g = parseInt($('grid').value, 10) || 0;
+  $('gridHint').textContent = g
+    ? 'Дольше, но находит больше: справочник отдаёт разные объекты для разных точек поиска.'
+    : 'Быстро, но часть объектов справочник в широком поиске не показывает.';
 }
-$('grid').addEventListener('input', updateGridHint);
+$('grid').addEventListener('change', updateGridHint);
 updateGridHint();
 
 function log(msg, kind) {
@@ -161,8 +176,24 @@ function esc(s) {
 function progress(on, text, frac) {
   $('prog').classList.toggle('on', !!on);
   if (text !== undefined) $('progText').textContent = text;
-  if (frac !== undefined && frac !== null) $('bar').firstElementChild.style.width = Math.round(frac * 100) + '%';
+  const bar = $('bar');
+  if (frac === undefined || frac === null) {
+    bar.classList.add('indet');
+    bar.firstElementChild.style.width = '';
+  } else {
+    bar.classList.remove('indet');
+    bar.firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
 }
+
+/* Мягко подсказываем, если в поле похоже на список */
+function looksLikeList(v) { return /[,;]|\bи\b/.test(v); }
+
+['query', 'city'].forEach(function (id) {
+  $(id).addEventListener('input', function () {
+    $(id).style.borderColor = looksLikeList($(id).value) ? 'var(--warn-text)' : '';
+  });
+});
 
 $('go').addEventListener('click', async function () {
   const query = $('query').value.trim();
@@ -176,34 +207,43 @@ $('go').addEventListener('click', async function () {
     return;
   }
 
+  const radiusKm = Math.max(1, Math.min(A.LIMITS.RADIUS_MAX / 1000,
+    parseFloat($('radius').value) || A.DEFAULTS.RADIUS / 1000));
   const cfg = {
     API_KEY: $('apiKey').value.trim() || A.DEFAULTS.API_KEY,
     QUERY: query,
     CITY: city,
-    GRID: Math.max(1, Math.min(12, parseInt($('grid').value, 10) || A.DEFAULTS.GRID)),
-    SEARCH_SPAN: parseFloat($('span').value) || A.DEFAULTS.SEARCH_SPAN,
-    SECTOR_RADIUS: parseInt($('radius').value, 10) || A.DEFAULTS.SECTOR_RADIUS,
-    PAGE_SIZE: A.DEFAULTS.PAGE_SIZE,
-    MAX_PAGES: A.DEFAULTS.MAX_PAGES
+    RADIUS: Math.round(radiusKm * 1000),
+    GRID: Math.max(0, Math.min(A.LIMITS.GRID_MAX, parseInt($('grid').value, 10) || 0)),
+    SPAN: A.DEFAULTS.SPAN,
+    SECTOR_RADIUS: A.DEFAULTS.SECTOR_RADIUS,
+    MAX_RESULTS: Math.max(50, Math.min(A.LIMITS.MAX_RESULTS_MAX,
+      parseInt($('maxResults').value, 10) || A.DEFAULTS.MAX_RESULTS)),
+    PAGE_SIZE: A.DEFAULTS.PAGE_SIZE
   };
+  $('radius').value = radiusKm;
+  $('maxResults').value = cfg.MAX_RESULTS;
+
+  if (looksLikeList(query) || looksLikeList(city)) {
+    log('В запросе или городе похоже на список — 2ГИС ищет строку целиком. ' +
+        'Если результат странный, разбейте на отдельные прогоны.', 'warn');
+  }
 
   $('go').disabled = true;
   $('stop').style.display = '';
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
-  progress(true, 'Определяю координаты города…', 0);
+  progress(true, 'Определяю координаты города…', null);
 
   abort = new AbortController();
   try {
     result = await A.run(cfg, {
       signal: abort.signal,
       onLog: log,
-      onProgress: function (done, total, found) {
-        progress(true, 'Сектор ' + done + ' из ' + total + ' — найдено ' + found + ' объектов',
-                 done / total);
+      onProgress: function (found, steps, step, what) {
+        progress(true, what + ' · найдено ' + found + ' объектов', steps ? step / steps : null);
       }
     });
-    log('Собрано с дублями: ' + result.rawCount + ' → уникальных: ' + result.results.length, 'ok');
     log('С адресом: ' + result.withAddress + ', без адреса: ' + result.withoutAddress);
     progress(false);
     render(cfg);
@@ -226,27 +266,38 @@ function render(cfg) {
   const n = result.results.length;
   $('tiles').innerHTML =
     tile(n, 'уникальных объектов', n ? 'good' : 'bad') +
-    tile(result.sectors, 'секторов обойдено', '') +
-    tile(result.rawCount, 'найдено с дублями', '') +
+    tile(result.fromWide, 'нашёл широкий поиск', '') +
+    (result.sectors ? tile('+' + result.fromGrid, 'добавила сетка',
+                           result.fromGrid ? 'good' : '') : '') +
+    tile(result.requests, 'запросов к 2ГИС', '') +
     tile(result.withoutAddress, 'без адреса', result.withoutAddress ? 'warn' : '');
 
   let notes = '';
   if (!n) {
-    notes = '<div class="note warn">Ничего не найдено. Проверьте запрос и город, либо увеличьте ' +
-      'область поиска и сетку.</div>';
+    notes = '<div class="note warn">Ничего не найдено. Проверьте запрос и город — ' +
+      'и что в полях по одному значению.</div>';
   } else {
-    const cap = cfg.GRID * cfg.GRID * cfg.PAGE_SIZE * cfg.MAX_PAGES;
-    if (result.rawCount >= cap * 0.9) {
-      notes += '<div class="note warn">Похоже, упёрлись в лимит выдачи (' + cap +
-        ' объектов при сетке ' + cfg.GRID + '×' + cfg.GRID + '). Часть объектов могла не попасть — ' +
-        'увеличьте сетку.</div>';
+    if (result.error) {
+      notes += '<div class="note err">Справочник прервал выдачу: ' + esc(result.error) +
+        '. Собрано то, что успели.</div>';
     }
-    notes += '<div class="note info">Центр города: ' + esc(result.city.displayName) + '</div>';
+    if (result.truncated && !result.error) {
+      notes += '<div class="note warn">Забрали не всё — сработало ограничение ' +
+        'в ' + cfg.MAX_RESULTS + ' объектов или поиск остановили. ' +
+        'Поднимите «Максимум объектов» или уточните запрос.</div>';
+    }
+    if (!cfg.GRID) {
+      notes += '<div class="note info">Обход по сетке выключен. Справочник в широком ' +
+        'поиске показывает не все объекты — включите сетку, если нужна полнота.</div>';
+    } else if (result.fromGrid) {
+      notes += '<div class="note ok">Сетка добавила <b>' + result.fromGrid +
+        '</b> объектов, которых не было в широком поиске.</div>';
+    }
+    notes += '<div class="note info">Центр поиска: ' + esc(result.center.displayName) + '</div>';
   }
   $('notes').innerHTML = notes;
 
   $('tbody').innerHTML = result.results.map(function (r) {
-    const q = r.lat + '%2C' + r.lon;
     return '<tr>' +
       '<td' + (r.address ? '' : ' class="muted"') + '>' + (r.address ? esc(r.address) : 'без адреса') + '</td>' +
       '<td class="num">' + r.lat.toFixed(6) + '</td>' +

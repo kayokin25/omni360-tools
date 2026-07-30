@@ -10,10 +10,13 @@ const UPSTREAM = 'https://catalog.api.2gis.com/3.0/items';
 // Пропускаем только то, что нужно инструменту. Ключ клиент передать не может.
 const ALLOWED = new Set(['q', 'point', 'radius', 'page', 'page_size', 'fields']);
 
+// Проверено запросами к API: page_size максимум 50 (иначе paramIsOutsideSet),
+// radius максимум 40 000 м, число страниц не ограничено — выдача листается
+// до конца, дальше приходит 404 itemNotFound.
 const LIMITS = {
   radius: 40000,
-  page: 50,
-  page_size: 10,   // максимум бесплатного тарифа
+  page: 500,       // 500 × 50 = 25 000 объектов, глубже забирать незачем
+  page_size: 50,
 };
 
 function deny(status, message) {

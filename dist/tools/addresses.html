@@ -5,59 +5,124 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Подбор адресов</title>
 <style>
-/* Общий стиль инструментов панели Omni360 (один язык с калькулятором OmniBuy) */
+/* Общий стиль инструментов панели Omni360 (один язык с калькулятором OmniBuy).
+   Все цвета — через переменные: тему задаёт панель, применяет lib/theme.js. */
+:root {
+  --bg: #0a0e1a;
+  --card: #111827;
+  --line: #1e293b;
+  --line-soft: #161f33;
+  --text: #f1f5f9;
+  --desc: #94a3b8;
+  --muted: #64748b;
+  --dim: #475569;
+  --panel: #0f172a;
+  --input-bg: #1e293b;
+  --input-line: #334155;
+  --code-bg: #0b1220;
+  --accent: #00c6ff;
+  --accent-2: #7bed9f;
+  --accent-ink: #05121f;
+  --link: #4f8cff;
+  --shadow: 0 24px 60px rgba(0, 0, 0, .4);
+  --row-hover: #151d30;
+  --tile-bg: #0f172a;
+  --scroll-track: #0b1220;
+  --scroll-thumb: #283449;
+  --ok-bg: #0d2018; --ok-line: #1e4d40; --ok-text: #7bed9f;
+  --warn-bg: #241a08; --warn-line: #57400f; --warn-text: #fbbf24;
+  --err-bg: #2a1215; --err-line: #5c2b2e; --err-text: #ff8a80;
+  --info-bg: #0d1b2e; --info-line: #1e3a5f; --info-text: #93c5fd;
+  --miss-bg: #1f1417; --miss-bg-hover: #2a1a1e;
+  --drop-fill: linear-gradient(135deg, #0d2440, #0d2e20);
+  --log-ok: #7bed9f; --log-warn: #fbbf24; --log-err: #f87171;
+}
+
+:root[data-theme="light"] {
+  --bg: #eef2f7;
+  --card: #ffffff;
+  --line: #dbe3ec;
+  --line-soft: #edf1f6;
+  --text: #0f172a;
+  --desc: #475569;
+  --muted: #64748b;
+  --dim: #94a3b8;
+  --panel: #f6f8fb;
+  --input-bg: #ffffff;
+  --input-line: #cbd5e1;
+  --code-bg: #f6f8fb;
+  --accent: #0284c7;
+  --accent-2: #15803d;
+  --accent-ink: #ffffff;
+  --link: #0369a1;
+  --shadow: 0 20px 50px rgba(15, 23, 42, .12);
+  --row-hover: #f6f8fb;
+  --tile-bg: #f6f8fb;
+  --scroll-track: #eef2f7;
+  --scroll-thumb: #c7d2e0;
+  --ok-bg: #ecfdf5; --ok-line: #a7f3d0; --ok-text: #047857;
+  --warn-bg: #fffbeb; --warn-line: #fde68a; --warn-text: #92400e;
+  --err-bg: #fef2f2; --err-line: #fecaca; --err-text: #b91c1c;
+  --info-bg: #eff6ff; --info-line: #bfdbfe; --info-text: #1d4ed8;
+  --miss-bg: #fef4f4; --miss-bg-hover: #fde8e8;
+  --drop-fill: linear-gradient(135deg, #eff6ff, #ecfdf5);
+  --log-ok: #047857; --log-warn: #b45309; --log-err: #b91c1c;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #0a0e1a;
+  background: var(--bg);
   min-height: 100vh;
   padding: 24px;
-  color: #f1f5f9;
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
+  transition: background .2s, color .2s;
 }
 
 .wrap { width: 100%; max-width: 980px; margin: 0 auto; }
 
 .card {
-  background: #111827;
-  border: 1px solid #1e293b;
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 20px;
   padding: 32px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .4);
+  box-shadow: var(--shadow);
 }
 
 /* ── шапка ── */
 .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
-.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, #00c6ff, #7bed9f); flex: none; }
-.logo-text { font-size: 18px; font-weight: 700; background: linear-gradient(90deg, #00c6ff, #7bed9f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.logo-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); flex: none; }
+.logo-text { font-size: 18px; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
-.subtitle { font-size: 13px; color: #64748b; margin-bottom: 26px; line-height: 1.5; }
+h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: var(--muted); margin-bottom: 26px; line-height: 1.5; }
 
 .section-label {
   font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: .8px; color: #475569; margin: 24px 0 12px;
+  letter-spacing: .8px; color: var(--dim); margin: 24px 0 12px;
 }
 .section-label:first-of-type { margin-top: 0; }
 
-.divider { height: 1px; background: #1e293b; margin: 24px 0; }
+.divider { height: 1px; background: var(--line); margin: 24px 0; }
 
 /* ── поля ── */
 .field { margin-bottom: 14px; }
-label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
-.hint { font-size: 11.5px; color: #475569; margin-top: 5px; line-height: 1.45; }
+label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
+.hint { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
 
 input[type=text], input[type=number], select {
-  width: 100%; background: #1e293b; border: 1px solid #334155;
-  border-radius: 10px; color: #f1f5f9; font-size: 14px;
+  width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
+  border-radius: 10px; color: var(--text); font-size: 14px;
   padding: 10px 13px; outline: none; transition: border-color .15s;
   font-family: inherit;
 }
-input[type=text]:focus, input[type=number]:focus, select:focus { border-color: #00c6ff; }
+input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--accent); }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
+input::placeholder { color: var(--dim); }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -65,98 +130,98 @@ input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allo
 
 /* ── зона выбора файла ── */
 .drop {
-  border: 1.5px dashed #334155; border-radius: 14px; padding: 22px 20px;
+  border: 1.5px dashed var(--input-line); border-radius: 14px; padding: 22px 20px;
   text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
-  background: #0f172a;
+  background: var(--panel);
 }
-.drop:hover, .drop.over { border-color: #00c6ff; background: #101c31; }
+.drop:hover, .drop.over { border-color: var(--accent); }
 .drop .icon { font-size: 22px; margin-bottom: 8px; opacity: .85; }
-.drop .main { font-size: 13.5px; color: #cbd5e1; font-weight: 500; }
-.drop .sub { font-size: 11.5px; color: #475569; margin-top: 5px; }
-.drop.filled { border-style: solid; border-color: #1e4d40; background: linear-gradient(135deg, #0d2440, #0d2e20); }
-.drop.filled .main { color: #7bed9f; }
+.drop .main { font-size: 13.5px; color: var(--text); font-weight: 500; }
+.drop .sub { font-size: 11.5px; color: var(--dim); margin-top: 5px; }
+.drop.filled { border-style: solid; border-color: var(--ok-line); background: var(--drop-fill); }
+.drop.filled .main { color: var(--ok-text); }
 input[type=file] { display: none; }
 
 /* ── кнопки ── */
 .btn {
-  background: linear-gradient(135deg, #00c6ff, #7bed9f); border: none;
-  color: #05121f; font-size: 14px; font-weight: 700; padding: 12px 22px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
+  color: var(--accent-ink); font-size: 14px; font-weight: 700; padding: 12px 22px;
   border-radius: 11px; cursor: pointer; transition: transform .12s, filter .15s;
   font-family: inherit;
 }
 .btn:hover:not(:disabled) { filter: brightness(1.08); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn.ghost {
-  background: #1e293b; border: 1px solid #334155; color: #cbd5e1; font-weight: 600;
+  background: var(--input-bg); border: 1px solid var(--input-line); color: var(--text); font-weight: 600;
 }
-.btn.ghost:hover:not(:disabled) { border-color: #00c6ff; color: #f1f5f9; filter: none; }
+.btn.ghost:hover:not(:disabled) { border-color: var(--accent); filter: none; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
 
 /* ── прогресс ── */
 .progress { margin-top: 18px; display: none; }
 .progress.on { display: block; }
-.bar { height: 6px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
 .bar > i {
   display: block; height: 100%; width: 0;
-  background: linear-gradient(90deg, #00c6ff, #7bed9f);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   border-radius: 99px; transition: width .2s;
 }
 .bar.indet > i { width: 35%; animation: slide 1.1s ease-in-out infinite; }
 @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
-.progress-text { font-size: 12px; color: #94a3b8; margin-top: 8px; min-height: 16px; }
+.progress-text { font-size: 12px; color: var(--desc); margin-top: 8px; min-height: 16px; }
 
 .log {
-  margin-top: 12px; background: #0b1220; border: 1px solid #1e293b; border-radius: 10px;
+  margin-top: 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
   padding: 10px 12px; font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #94a3b8; max-height: 170px; overflow: auto; white-space: pre-wrap;
+  color: var(--desc); max-height: 170px; overflow: auto; white-space: pre-wrap;
   word-break: break-word; display: none;
 }
 .log.on { display: block; }
-.log b { color: #7bed9f; font-weight: 600; }
-.log i { color: #fbbf24; font-style: normal; }
-.log s { color: #f87171; text-decoration: none; }
+.log b { color: var(--log-ok); font-weight: 600; }
+.log i { color: var(--log-warn); font-style: normal; }
+.log s { color: var(--log-err); text-decoration: none; }
 
 /* ── плитки статистики ── */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin-bottom: 18px; }
-.tile { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 13px 15px; }
-.tile .v { font-size: 21px; font-weight: 800; color: #f1f5f9; line-height: 1.15; }
-.tile .k { font-size: 10.5px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
-.tile.good .v { background: linear-gradient(90deg, #00c6ff, #7bed9f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.tile.warn .v { color: #fbbf24; }
-.tile.bad .v { color: #f87171; }
+.tile { background: var(--tile-bg); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+.tile .v { font-size: 21px; font-weight: 800; color: var(--text); line-height: 1.15; }
+.tile .k { font-size: 10.5px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.tile.good .v { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.tile.warn .v { color: var(--warn-text); }
+.tile.bad .v { color: var(--err-text); }
 
 /* ── таблица ── */
-.table-wrap { border: 1px solid #1e293b; border-radius: 12px; overflow: auto; max-height: 440px; }
+.table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: auto; max-height: 440px; }
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead th {
-  position: sticky; top: 0; z-index: 1; background: #0f172a; color: #64748b;
+  position: sticky; top: 0; z-index: 1; background: var(--panel); color: var(--muted);
   font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
-  text-align: left; padding: 9px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap;
+  text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
 }
-tbody td { padding: 9px 12px; border-bottom: 1px solid #161f33; color: #cbd5e1; vertical-align: top; }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); color: var(--desc); vertical-align: top; }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: #151d30; }
+tbody tr:hover td { background: var(--row-hover); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.nowrap { white-space: nowrap; }
-td.muted { color: #64748b; }
-tbody tr.miss td { background: #1f1417; }
-tbody tr.miss:hover td { background: #2a1a1e; }
+td.muted { color: var(--muted); }
+tbody tr.miss td { background: var(--miss-bg); }
+tbody tr.miss:hover td { background: var(--miss-bg-hover); }
 tbody tr.miss td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
 tbody tr.ok td:first-child { box-shadow: inset 3px 0 0 #15803d; }
-a { color: #4f8cff; text-decoration: none; }
-a:hover { color: #7bed9f; text-decoration: underline; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
 /* ── сообщения ── */
 .note {
   border-radius: 12px; padding: 13px 16px; font-size: 12.5px; line-height: 1.55;
   margin-bottom: 16px; border: 1px solid;
 }
-.note.info { background: #0d1b2e; border-color: #1e3a5f; color: #93c5fd; }
-.note.warn { background: #241a08; border-color: #57400f; color: #fbbf24; }
-.note.err { background: #2a1215; border-color: #5c2b2e; color: #ff8a80; }
-.note.ok { background: #0d2018; border-color: #1e4d40; color: #7bed9f; }
+.note.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info-text); }
+.note.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-text); }
+.note.err { background: var(--err-bg); border-color: var(--err-line); color: var(--err-text); }
+.note.ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-text); }
 .note b { font-weight: 700; }
-.note code { font: 11.5px ui-monospace, Menlo, Consolas, monospace; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; }
+.note code { font: 11.5px ui-monospace, Menlo, Consolas, monospace; background: rgba(127,127,127,.14); padding: 1px 5px; border-radius: 4px; }
 
 .results { display: none; }
 .results.on { display: block; }
@@ -164,23 +229,99 @@ a:hover { color: #7bed9f; text-decoration: underline; }
 /* ── табы ── */
 .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
 .tab {
-  background: #0f172a; border: 1px solid #1e293b; color: #64748b;
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
   font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 9px;
   cursor: pointer; font-family: inherit; transition: all .13s;
 }
-.tab:hover { color: #cbd5e1; border-color: #334155; }
-.tab.on { background: #1e293b; color: #f1f5f9; border-color: #475569; }
-.tab .cnt { color: #475569; font-weight: 500; }
-.tab.on .cnt { color: #94a3b8; }
+.tab:hover { color: var(--text); border-color: var(--input-line); }
+.tab.on { background: var(--input-bg); color: var(--text); border-color: var(--input-line); }
+.tab .cnt { color: var(--dim); font-weight: 500; }
+.tab.on .cnt { color: var(--desc); }
 
-.footer { margin-top: 22px; text-align: center; font-size: 11px; color: #334155; }
+.footer { margin-top: 22px; text-align: center; font-size: 11px; color: var(--dim); }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-track { background: #0b1220; }
-::-webkit-scrollbar-thumb { background: #283449; border-radius: 9px; }
-::-webkit-scrollbar-thumb:hover { background: #3a4a63; }
+::-webkit-scrollbar-track { background: var(--scroll-track); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 9px; }
+::-webkit-scrollbar-thumb:hover { filter: brightness(1.2); }
 
 </style>
+<script>
+/* Тема инструмента.
+
+   Инструмент открывается либо внутри панели (в iframe), либо отдельной
+   страницей. Поэтому тему берём по порядку:
+     1. #theme=... в адресе — так панель задаёт тему сразу, без мигания;
+     2. сохранённая в localStorage — для отдельной страницы;
+     3. системная настройка.
+
+   Панель при переключении присылает postMessage — применяем на лету, чтобы
+   открытый инструмент не перезагружался и не терял результаты. */
+(function (root) {
+'use strict';
+
+const KEY = 'omni360.theme';
+
+function fromHash() {
+  const m = /(?:^|[#&])theme=(light|dark)\b/.exec(root.location.hash || '');
+  return m ? m[1] : null;
+}
+
+function fromStorage() {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch (e) { return null; }   // приватный режим
+}
+
+function fromSystem() {
+  try {
+    return root.matchMedia && root.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light' : 'dark';
+  } catch (e) { return 'dark'; }
+}
+
+/* current объявляем ДО apply(): apply() его присваивает, а обращение к let-
+   переменной до инициализации — ReferenceError. Раньше здесь было
+   `let current = apply(...)`, и скрипт падал сразу после setAttribute: тема
+   применялась, но слушатель postMessage уже не регистрировался. */
+let current = 'dark';
+
+function apply(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  current = t;
+  return t;
+}
+
+apply(fromHash() || fromStorage() || fromSystem());
+
+/* Панель сообщает о переключении. Сообщения приходят от родительского
+   документа панели; проверяем только форму — данных тут нет, лишь имя темы. */
+root.addEventListener('message', function (e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.omniTheme !== 'light' && d.omniTheme !== 'dark') return;
+  apply(d.omniTheme);
+});
+
+root.OmniTheme = {
+  get: function () { return current; },
+  apply: apply,
+  /* Для отдельной страницы: запомнить выбор. Внутри панели выбор хранит панель. */
+  save: function (theme) {
+    const t = apply(theme);
+    try { localStorage.setItem(KEY, t); } catch (e) { /* приватный режим */ }
+    return t;
+  },
+  isEmbedded: function () {
+    try { return root.parent !== root; } catch (e) { return true; }
+  }
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -196,8 +337,10 @@ a:hover { color: #7bed9f; text-decoration: underline; }
 
   <h1>Подбор адресов</h1>
   <p class="subtitle">
-    Город разбивается на сетку секторов, по каждому идёт запрос в справочник 2ГИС —
-    так набирается больше объектов, чем за один поиск. Дубли по координатам убираются.
+    Собирает объекты из справочника 2ГИС двумя проходами — широким поиском от центра
+    города и обходом по сетке — и объединяет результат. Так находится заметно больше,
+    чем любым проходом по отдельности: справочник отдаёт разные объекты в зависимости
+    от точки и радиуса поиска.
   </p>
 
   <div class="section-label">Что искать</div>
@@ -211,32 +354,42 @@ a:hover { color: #7bed9f; text-decoration: underline; }
       <input type="text" id="city" placeholder="Казань" spellcheck="false">
     </div>
   </div>
+  <div class="note warn" style="margin-top:-2px">
+    За один раз — <b>один запрос и один город</b>. Списки через запятую
+    («Пятёрочка, Магнит» или «Казань, Уфа») справочник воспримет как одну строку
+    и вернёт ерунду. Нужно несколько — прогоните по очереди.
+  </div>
 
-  <div class="section-label">Параметры поиска</div>
+  <div class="section-label">Параметры</div>
   <div class="grid3">
     <div class="field">
-      <label>Сетка (GRID × GRID)</label>
-      <input type="number" id="grid" min="1" max="12" step="1">
+      <label>Радиус широкого поиска, км</label>
+      <input type="number" id="radius" min="1" max="40" step="1">
+      <div class="hint">Максимум 40 км — предел API.</div>
+    </div>
+    <div class="field">
+      <label>Сетка обхода</label>
+      <select id="grid">
+        <option value="0">только широкий поиск — быстро</option>
+        <option value="4">4×4 — 16 точек</option>
+        <option value="6">6×6 — 36 точек</option>
+        <option value="8">8×8 — 64 точки</option>
+      </select>
       <div class="hint" id="gridHint"></div>
     </div>
     <div class="field">
-      <label>Область поиска, °</label>
-      <input type="number" id="span" min="0.02" max="1.5" step="0.05">
-      <div class="hint">0.3 ≈ 33 км — крупный город; 0.1 ≈ 11 км — небольшой</div>
-    </div>
-    <div class="field">
-      <label>Радиус сектора, м</label>
-      <input type="number" id="radius" min="500" max="40000" step="500">
-      <div class="hint">перекрытие секторов — это нормально, дубли уберутся</div>
+      <label>Максимум объектов</label>
+      <input type="number" id="maxResults" min="50" max="20000" step="50">
+      <div class="hint">Предохранитель от общих запросов: «магазин» по Москве —
+        больше 20 000 объектов.</div>
     </div>
   </div>
 
   <details style="margin-top:4px" id="keyBlock">
-    <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none">Ключ API 2ГИС</summary>
+    <summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Ключ API 2ГИС</summary>
     <div class="field" style="margin-top:10px">
       <input type="text" id="apiKey" spellcheck="false" placeholder="вставьте ключ с dev.2gis.ru">
-      <div class="hint">Ключ сохранится в этом браузере и больше спрашиваться не будет.
-        На бесплатном тарифе — до 10 объектов на страницу и до 5 страниц на сектор.</div>
+      <div class="hint">Ключ сохранится в этом браузере и больше спрашиваться не будет.</div>
     </div>
   </details>
   <div class="hint" id="proxyNote" style="display:none;margin-top:6px">
@@ -1075,7 +1228,30 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
 <script>
 window.OMNI_ENDPOINTS = {"mode": "proxy", "gis": "/api/2gis", "geocode": "/api/geocode"};
 /* ============================================================================
-   Подбор адресов — логика (порт script.py: Nominatim + 2ГИС по сетке секторов).
+   Подбор адресов.
+
+   Что выяснилось при проверке API (см. README, раздел «Как собираются адреса»):
+
+   1. Ограничения, из-за которых в script.py появилась сетка, были ошибочными:
+      page_size можно до 50 (а не 10), страницы не ограничены вовсе — выдача
+      листается до конца, дальше приходит 404 itemNotFound. radius — до 40 000 м.
+      В ответе есть result.total.
+
+   2. Но сетку убрать нельзя. «point + radius» у 2ГИС — не геометрический фильтр:
+      для одних запросов total растёт с радиусом (Пятёрочка/Уфа: 72→274), а для
+      других скачет и падает (КанАвто/Казань: 7 при 3 км, 3 при 8 км), причём
+      объекты из маленького радиуса в большой выдачу не попадают, хотя лежат
+      внутри круга.
+
+   3. Замер на четырёх запросах: ни одна стратегия не выигрывает.
+        КанАвто/Казань     широкий 8   сетка 17   вместе 17
+        Пятёрочка/Уфа      широкий 274 сетка 216  вместе 275
+        Магнит/Казань      широкий 315 сетка 259  вместе 326
+        Додо Пицца/Казань  широкий 16  сетка 75   вместе 77
+
+   Поэтому делаем оба прохода и объединяем: широкий поиск от центра города плюс
+   обход по сетке, в каждой точке — полная пагинация. Дубли снимаем по координатам.
+
    Зависит от OmniLib.
    ========================================================================== */
 (function (root) {
@@ -1084,20 +1260,26 @@ window.OMNI_ENDPOINTS = {"mode": "proxy", "gis": "/api/2gis", "geocode": "/api/g
 const L = root.OmniLib;
 
 const DEFAULTS = {
-  API_KEY: '',     // подставляется сборкой только в вариант без прокси
-  GRID: 6,
-  SEARCH_SPAN: 0.3,
-  SECTOR_RADIUS: 6000,
-  PAGE_SIZE: 10,   // максимум на бесплатном тарифе
-  MAX_PAGES: 5     // максимум на бесплатном тарифе
+  API_KEY: '',         // подставляется сборкой только в вариант без прокси
+  RADIUS: 40000,       // широкий проход: максимум, который принимает API
+  GRID: 6,             // сетка n×n; 0 — только широкий проход
+  SPAN: 0.3,           // сторона области обхода в градусах (≈33 км)
+  SECTOR_RADIUS: 6000, // радиус в точке сетки; с шагом 0.05° круги перекрываются
+  MAX_RESULTS: 2000,   // предохранитель: «магазин» по Москве даёт ~25 000
+  PAGE_SIZE: 50        // максимум, который принимает API
+};
+
+const LIMITS = {
+  RADIUS_MAX: 40000,
+  GRID_MAX: 10,
+  PAGE_SIZE_MAX: 50,
+  MAX_RESULTS_MAX: 20000
 };
 
 /* Куда ходить за данными. Сборка подменяет это на один из двух вариантов:
      • proxy  — через функции Netlify: ключ 2ГИС лежит на сервере,
                 в странице и в репозитории его нет;
-     • direct — прямо в 2ГИС/Nominatim, ключ вводится в интерфейсе
-                (нужен, когда панель открывают файлом без доступа к сайту).
-   Значения по умолчанию — прокси относительными путями. */
+     • direct — прямо в 2ГИС/Nominatim, ключ вводится в интерфейсе. */
 const ENDPOINTS = Object.assign({
   mode: 'proxy',
   gis: '/api/2gis',
@@ -1120,8 +1302,6 @@ function endpoint(url) {
   }
   return origin + url;
 }
-
-function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 /* Координаты центра города. */
 async function getCityCoordinates(city) {
@@ -1148,7 +1328,7 @@ async function getCityCoordinates(city) {
   };
 }
 
-/* Адрес объекта 2ГИС — пробуем разные поля (как extract_address). */
+/* Адрес объекта 2ГИС — пробуем разные поля. */
 function extractAddress(item) {
   if (item.address_name) return item.address_name;
   const addr = item.address || {};
@@ -1165,113 +1345,187 @@ function extractAddress(item) {
   return item.full_address_name || '';
 }
 
-/* Сетка секторов вокруг центра города. */
-function buildSectors(centerLat, centerLon, grid, span) {
-  const step = span / grid;
-  const half = span / 2;
-  const startLat = centerLat - half + step / 2;
-  const startLon = centerLon - half + step / 2;
-  const sectors = [];
-  for (let i = 0; i < grid; i++) {
-    for (let j = 0; j < grid; j++) {
-      sectors.push({ lat: startLat + i * step, lon: startLon + j * step });
-    }
+/* Одна страница выдачи → { items, total, done, error }. */
+async function fetchPage(cfg, center, radius, page, signal) {
+  const url = endpoint(ENDPOINTS.gis) +
+    '?q=' + encodeURIComponent(cfg.QUERY) +
+    (usesProxy() ? '' : '&key=' + encodeURIComponent(cfg.API_KEY)) +
+    '&point=' + center.lon + ',' + center.lat +
+    '&radius=' + radius +
+    '&page=' + page +
+    '&page_size=' + cfg.PAGE_SIZE +
+    '&fields=items.address,items.address_name,items.full_address_name,items.point';
+
+  let data;
+  try {
+    const r = await fetch(url, { signal: signal });
+    data = await r.json();
+  } catch (e) {
+    if (e && e.name === 'AbortError') return { items: [], done: true };
+    throw e;
   }
-  return sectors;
+
+  const meta = data.meta || {};
+  if (meta.code !== 200) {
+    // 404 itemNotFound — выдача закончилась, это штатное завершение
+    const type = (meta.error || {}).type || '';
+    if (meta.code === 404 || type === 'itemNotFound') return { items: [], done: true };
+    return {
+      items: [], done: true,
+      error: (meta.error || {}).message || ('справочник ответил ' + meta.code)
+    };
+  }
+
+  const res = data.result || {};
+  const raw = res.items || [];
+  const items = [];
+  for (const it of raw) {
+    const p = it.point || {};
+    if (p.lat === undefined || p.lon === undefined || p.lat === null || p.lon === null) continue;
+    items.push({ address: extractAddress(it), lat: p.lat, lon: p.lon });
+  }
+  return {
+    items: items,
+    total: res.total,
+    done: raw.length < cfg.PAGE_SIZE   // неполная страница — дальше ничего нет
+  };
 }
 
-/* Поиск в одном секторе с пагинацией. */
-async function searchSector(cfg, sector, signal, onWarn) {
+/* Точки сетки вокруг центра. */
+function buildSectors(center, grid, span) {
+  const step = span / grid;
+  const half = span / 2;
   const out = [];
-  for (let page = 1; page <= cfg.MAX_PAGES; page++) {
-    if (signal && signal.aborted) break;
-    // Ключ уходит в запрос только в прямом режиме; через прокси его добавляет сервер.
-    const url = endpoint(ENDPOINTS.gis) +
-      '?q=' + encodeURIComponent(cfg.QUERY) +
-      (usesProxy() ? '' : '&key=' + encodeURIComponent(cfg.API_KEY)) +
-      '&point=' + sector.lon + ',' + sector.lat +
-      '&radius=' + cfg.SECTOR_RADIUS +
-      '&page=' + page +
-      '&page_size=' + cfg.PAGE_SIZE +
-      '&fields=items.address,items.address_name,items.full_address_name,items.point';
-    let data;
-    try {
-      const r = await fetch(url, { signal: signal });
-      data = await r.json();
-    } catch (e) {
-      if (e && e.name === 'AbortError') break;
-      throw e;
+  for (let i = 0; i < grid; i++) {
+    for (let j = 0; j < grid; j++) {
+      out.push({
+        lat: center.lat - half + step / 2 + i * step,
+        lon: center.lon - half + step / 2 + j * step
+      });
     }
-    const meta = data.meta || {};
-    // Ошибку настройки прокси надо показать, а не молча вернуть ноль объектов
-    if (meta.code >= 500 && meta.error && onWarn) onWarn(meta.error.message || 'ошибка сервера');
-    if (meta.code === 403 && meta.error && onWarn) onWarn(meta.error.message || 'доступ запрещён');
-    if (meta.code !== 200) break;          // 404/400 на последней странице — норма
-    const items = (data.result || {}).items || [];
-    if (!items.length) break;
-    for (const it of items) {
-      const p = it.point || {};
-      if (p.lat === undefined || p.lon === undefined || p.lat === null || p.lon === null) continue;
-      out.push({ address: extractAddress(it), lat: p.lat, lon: p.lon });
-    }
-    if (items.length < cfg.PAGE_SIZE) break;
-    await sleep(200);
   }
   return out;
 }
 
-/* Полный проход: сетка × страницы, дедуп по округлённым координатам. */
+/* Вычерпывает одну точку: листает страницы, пока они не кончатся. */
+async function sweepPoint(cfg, point, radius, state, signal) {
+  let pages = 0;
+  let total = null;
+  for (let page = 1; ; page++) {
+    if (signal && signal.aborted) return { pages: pages, total: total, stopped: true };
+    const r = await fetchPage(cfg, point, radius, page, signal);
+    pages = page;
+    state.requests++;
+    if (r.total !== undefined && r.total !== null) total = r.total;
+    for (const it of r.items) state.push(it);
+    if (r.error) return { pages: pages, total: total, error: r.error };
+    if (r.done) break;
+    if (state.count() >= cfg.MAX_RESULTS) return { pages: pages, total: total, capped: true };
+  }
+  return { pages: pages, total: total };
+}
+
+/* Полный сбор: широкий проход от центра + обход по сетке, всё объединяется.
+   Почему оба — см. комментарий в начале файла. */
 async function run(cfg, hooks) {
   const onLog = (hooks && hooks.onLog) || function () {};
   const onProgress = (hooks && hooks.onProgress) || function () {};
   const signal = hooks && hooks.signal;
 
   onLog('Ищу координаты города: ' + cfg.CITY);
-  const city = await getCityCoordinates(cfg.CITY);
-  if (!city) throw new Error('Не удалось определить координаты города «' + cfg.CITY + '»');
-  onLog('Найден: ' + city.displayName, 'ok');
-  onLog('Координаты центра: ' + city.lat.toFixed(6) + ', ' + city.lon.toFixed(6));
+  const center = await getCityCoordinates(cfg.CITY);
+  if (!center) throw new Error('Не удалось определить координаты города «' + cfg.CITY + '»');
+  onLog('Центр: ' + center.displayName, 'ok');
+  onLog('Координаты: ' + center.lat.toFixed(6) + ', ' + center.lon.toFixed(6));
 
-  const sectors = buildSectors(city.lat, city.lon, cfg.GRID, cfg.SEARCH_SPAN);
-  onLog('Сетка ' + cfg.GRID + '×' + cfg.GRID + ' = ' + sectors.length +
-        ' секторов, радиус сектора ' + cfg.SECTOR_RADIUS + ' м');
-
-  const all = [];
-  const warned = new Set();
-  const onWarn = function (msg) {
-    if (warned.has(msg)) return;
-    warned.add(msg);
-    onLog(msg, 'err');
+  // Общая копилка: дедуп по координатам сразу, чтобы не копить мусор.
+  // Помним, какой проход нашёл объект первым — это показываем в результатах.
+  const byCoord = new Map();
+  let stage = 'wide';
+  const state = {
+    requests: 0,
+    push: function (it) {
+      const key = it.lat.toFixed(6) + ',' + it.lon.toFixed(6);
+      if (byCoord.has(key)) return;
+      byCoord.set(key, { address: it.address, lat: it.lat, lon: it.lon, foundBy: stage });
+    },
+    count: function () { return byCoord.size; }
   };
-  for (let i = 0; i < sectors.length; i++) {
-    if (signal && signal.aborted) { onLog('Остановлено пользователем', 'warn'); break; }
-    const res = await searchSector(cfg, sectors[i], signal, onWarn);
-    all.push.apply(all, res);
-    onProgress(i + 1, sectors.length, all.length);
-    onLog('Сектор ' + (i + 1) + '/' + sectors.length + ' (' +
-          sectors[i].lat.toFixed(4) + ', ' + sectors[i].lon.toFixed(4) + '): ' +
-          res.length + ' объектов');
+
+  const sectors = cfg.GRID > 0 ? buildSectors(center, cfg.GRID, cfg.SPAN) : [];
+  const steps = 1 + sectors.length;
+  let step = 0;
+  let truncated = false;
+  let error = null;
+
+  // ── проход 1: широкий круг от центра ──
+  onLog('Широкий поиск: радиус ' + (cfg.RADIUS / 1000).toFixed(0) + ' км');
+  const wide = await sweepPoint(cfg, center, cfg.RADIUS, state, signal);
+  step++;
+  const wideTotal = wide.total;
+  if (wideTotal !== null && wideTotal !== undefined) {
+    onLog('Справочник сообщает всего по запросу: ' + wideTotal, 'ok');
+  }
+  onLog('Широкий поиск: страниц ' + wide.pages + ', уникальных ' + state.count());
+  onProgress(state.count(), steps, step, 'широкий поиск');
+  if (wide.error) { error = wide.error; onLog(wide.error, 'err'); }
+  if (wide.capped) truncated = true;
+  if (wide.stopped) truncated = true;
+
+  const afterWide = state.count();
+
+  // ── проход 2: сетка ──
+  if (sectors.length && !error && !truncated) {
+    stage = 'grid';
+    onLog('Обход по сетке ' + cfg.GRID + '×' + cfg.GRID + ' (' + sectors.length +
+          ' точек, радиус ' + (cfg.SECTOR_RADIUS / 1000).toFixed(0) + ' км)');
+    for (let i = 0; i < sectors.length; i++) {
+      if (signal && signal.aborted) { truncated = true; onLog('Остановлено', 'warn'); break; }
+      const before = state.count();
+      const r = await sweepPoint(cfg, sectors[i], cfg.SECTOR_RADIUS, state, signal);
+      step++;
+      const added = state.count() - before;
+      onProgress(state.count(), steps, step, 'сектор ' + (i + 1) + ' из ' + sectors.length);
+      if (added) {
+        onLog('Сектор ' + (i + 1) + '/' + sectors.length + ': +' + added +
+              ' новых (всего ' + state.count() + ')');
+      }
+      if (r.error) { error = r.error; onLog(r.error, 'err'); break; }
+      if (r.stopped) { truncated = true; onLog('Остановлено', 'warn'); break; }
+      if (r.capped) {
+        truncated = true;
+        onLog('Дошли до ограничения в ' + cfg.MAX_RESULTS + ' объектов', 'warn');
+        break;
+      }
+    }
   }
 
-  const seen = new Set();
-  const unique = [];
-  for (const r of all) {
-    const key = r.lat.toFixed(6) + ',' + r.lon.toFixed(6);
-    if (!seen.has(key)) { seen.add(key); unique.push(r); }
-  }
-
+  const unique = [...byCoord.values()];
+  const fromWide = unique.filter(function (r) { return r.foundBy === 'wide'; }).length;
+  const fromGrid = unique.length - fromWide;
   const withAddr = unique.filter(function (r) { return r.address; }).length;
+
+  onLog('Итого уникальных: ' + unique.length +
+        ' (широкий поиск ' + fromWide + ', сетка добавила ' + fromGrid + ')', 'ok');
+  onLog('Запросов к справочнику: ' + state.requests);
+
   return {
-    city: city,
-    sectors: sectors.length,
-    rawCount: all.length,
+    center: center,
+    total: wideTotal === undefined ? null : wideTotal,
     results: unique,
+    fromWide: fromWide,
+    fromGrid: fromGrid,
+    afterWide: afterWide,
+    sectors: sectors.length,
+    requests: state.requests,
     withAddress: withAddr,
-    withoutAddress: unique.length - withAddr
+    withoutAddress: unique.length - withAddr,
+    truncated: truncated,
+    error: error
   };
 }
 
-/* Лист xlsx «Результаты» — как в script.py. */
+/* Лист xlsx «Результаты». */
 function buildReport(results) {
   const rows = [['Название', 'Широта', 'Долгота']];
   for (const r of results) {
@@ -1286,12 +1540,14 @@ function buildReport(results) {
 
 root.AddressesCore = {
   DEFAULTS: DEFAULTS,
+  LIMITS: LIMITS,
   ENDPOINTS: ENDPOINTS,
   usesProxy: usesProxy,
   getCityCoordinates: getCityCoordinates,
   extractAddress: extractAddress,
+  fetchPage: fetchPage,
   buildSectors: buildSectors,
-  searchSector: searchSector,
+  sweepPoint: sweepPoint,
   run: run,
   buildReport: buildReport
 };
@@ -1311,8 +1567,7 @@ let result = null, abort = null;
 
 const KEY_STORE = 'omni360.gisApiKey';
 
-/* Через прокси ключ вообще не нужен — прячем поле.
-   В прямом режиме подставляем сохранённый ранее ключ. */
+/* Через прокси ключ вообще не нужен — прячем поле. */
 if (A.usesProxy()) {
   $('keyBlock').style.display = 'none';
   $('proxyNote').style.display = '';
@@ -1326,16 +1581,17 @@ if (A.usesProxy()) {
   if (!$('apiKey').value) $('keyBlock').open = true;
 }
 
-$('grid').value = A.DEFAULTS.GRID;
-$('span').value = A.DEFAULTS.SEARCH_SPAN;
-$('radius').value = A.DEFAULTS.SECTOR_RADIUS;
+$('radius').value = A.DEFAULTS.RADIUS / 1000;
+$('maxResults').value = A.DEFAULTS.MAX_RESULTS;
+$('grid').value = String(A.DEFAULTS.GRID);
 
 function updateGridHint() {
-  const g = parseInt($('grid').value, 10) || 1;
-  const max = g * g * A.DEFAULTS.PAGE_SIZE * A.DEFAULTS.MAX_PAGES;
-  $('gridHint').textContent = g * g + ' секторов, до ' + max + ' объектов';
+  const g = parseInt($('grid').value, 10) || 0;
+  $('gridHint').textContent = g
+    ? 'Дольше, но находит больше: справочник отдаёт разные объекты для разных точек поиска.'
+    : 'Быстро, но часть объектов справочник в широком поиске не показывает.';
 }
-$('grid').addEventListener('input', updateGridHint);
+$('grid').addEventListener('change', updateGridHint);
 updateGridHint();
 
 function log(msg, kind) {
@@ -1353,8 +1609,24 @@ function esc(s) {
 function progress(on, text, frac) {
   $('prog').classList.toggle('on', !!on);
   if (text !== undefined) $('progText').textContent = text;
-  if (frac !== undefined && frac !== null) $('bar').firstElementChild.style.width = Math.round(frac * 100) + '%';
+  const bar = $('bar');
+  if (frac === undefined || frac === null) {
+    bar.classList.add('indet');
+    bar.firstElementChild.style.width = '';
+  } else {
+    bar.classList.remove('indet');
+    bar.firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
 }
+
+/* Мягко подсказываем, если в поле похоже на список */
+function looksLikeList(v) { return /[,;]|\bи\b/.test(v); }
+
+['query', 'city'].forEach(function (id) {
+  $(id).addEventListener('input', function () {
+    $(id).style.borderColor = looksLikeList($(id).value) ? 'var(--warn-text)' : '';
+  });
+});
 
 $('go').addEventListener('click', async function () {
   const query = $('query').value.trim();
@@ -1368,34 +1640,43 @@ $('go').addEventListener('click', async function () {
     return;
   }
 
+  const radiusKm = Math.max(1, Math.min(A.LIMITS.RADIUS_MAX / 1000,
+    parseFloat($('radius').value) || A.DEFAULTS.RADIUS / 1000));
   const cfg = {
     API_KEY: $('apiKey').value.trim() || A.DEFAULTS.API_KEY,
     QUERY: query,
     CITY: city,
-    GRID: Math.max(1, Math.min(12, parseInt($('grid').value, 10) || A.DEFAULTS.GRID)),
-    SEARCH_SPAN: parseFloat($('span').value) || A.DEFAULTS.SEARCH_SPAN,
-    SECTOR_RADIUS: parseInt($('radius').value, 10) || A.DEFAULTS.SECTOR_RADIUS,
-    PAGE_SIZE: A.DEFAULTS.PAGE_SIZE,
-    MAX_PAGES: A.DEFAULTS.MAX_PAGES
+    RADIUS: Math.round(radiusKm * 1000),
+    GRID: Math.max(0, Math.min(A.LIMITS.GRID_MAX, parseInt($('grid').value, 10) || 0)),
+    SPAN: A.DEFAULTS.SPAN,
+    SECTOR_RADIUS: A.DEFAULTS.SECTOR_RADIUS,
+    MAX_RESULTS: Math.max(50, Math.min(A.LIMITS.MAX_RESULTS_MAX,
+      parseInt($('maxResults').value, 10) || A.DEFAULTS.MAX_RESULTS)),
+    PAGE_SIZE: A.DEFAULTS.PAGE_SIZE
   };
+  $('radius').value = radiusKm;
+  $('maxResults').value = cfg.MAX_RESULTS;
+
+  if (looksLikeList(query) || looksLikeList(city)) {
+    log('В запросе или городе похоже на список — 2ГИС ищет строку целиком. ' +
+        'Если результат странный, разбейте на отдельные прогоны.', 'warn');
+  }
 
   $('go').disabled = true;
   $('stop').style.display = '';
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
-  progress(true, 'Определяю координаты города…', 0);
+  progress(true, 'Определяю координаты города…', null);
 
   abort = new AbortController();
   try {
     result = await A.run(cfg, {
       signal: abort.signal,
       onLog: log,
-      onProgress: function (done, total, found) {
-        progress(true, 'Сектор ' + done + ' из ' + total + ' — найдено ' + found + ' объектов',
-                 done / total);
+      onProgress: function (found, steps, step, what) {
+        progress(true, what + ' · найдено ' + found + ' объектов', steps ? step / steps : null);
       }
     });
-    log('Собрано с дублями: ' + result.rawCount + ' → уникальных: ' + result.results.length, 'ok');
     log('С адресом: ' + result.withAddress + ', без адреса: ' + result.withoutAddress);
     progress(false);
     render(cfg);
@@ -1418,27 +1699,38 @@ function render(cfg) {
   const n = result.results.length;
   $('tiles').innerHTML =
     tile(n, 'уникальных объектов', n ? 'good' : 'bad') +
-    tile(result.sectors, 'секторов обойдено', '') +
-    tile(result.rawCount, 'найдено с дублями', '') +
+    tile(result.fromWide, 'нашёл широкий поиск', '') +
+    (result.sectors ? tile('+' + result.fromGrid, 'добавила сетка',
+                           result.fromGrid ? 'good' : '') : '') +
+    tile(result.requests, 'запросов к 2ГИС', '') +
     tile(result.withoutAddress, 'без адреса', result.withoutAddress ? 'warn' : '');
 
   let notes = '';
   if (!n) {
-    notes = '<div class="note warn">Ничего не найдено. Проверьте запрос и город, либо увеличьте ' +
-      'область поиска и сетку.</div>';
+    notes = '<div class="note warn">Ничего не найдено. Проверьте запрос и город — ' +
+      'и что в полях по одному значению.</div>';
   } else {
-    const cap = cfg.GRID * cfg.GRID * cfg.PAGE_SIZE * cfg.MAX_PAGES;
-    if (result.rawCount >= cap * 0.9) {
-      notes += '<div class="note warn">Похоже, упёрлись в лимит выдачи (' + cap +
-        ' объектов при сетке ' + cfg.GRID + '×' + cfg.GRID + '). Часть объектов могла не попасть — ' +
-        'увеличьте сетку.</div>';
+    if (result.error) {
+      notes += '<div class="note err">Справочник прервал выдачу: ' + esc(result.error) +
+        '. Собрано то, что успели.</div>';
     }
-    notes += '<div class="note info">Центр города: ' + esc(result.city.displayName) + '</div>';
+    if (result.truncated && !result.error) {
+      notes += '<div class="note warn">Забрали не всё — сработало ограничение ' +
+        'в ' + cfg.MAX_RESULTS + ' объектов или поиск остановили. ' +
+        'Поднимите «Максимум объектов» или уточните запрос.</div>';
+    }
+    if (!cfg.GRID) {
+      notes += '<div class="note info">Обход по сетке выключен. Справочник в широком ' +
+        'поиске показывает не все объекты — включите сетку, если нужна полнота.</div>';
+    } else if (result.fromGrid) {
+      notes += '<div class="note ok">Сетка добавила <b>' + result.fromGrid +
+        '</b> объектов, которых не было в широком поиске.</div>';
+    }
+    notes += '<div class="note info">Центр поиска: ' + esc(result.center.displayName) + '</div>';
   }
   $('notes').innerHTML = notes;
 
   $('tbody').innerHTML = result.results.map(function (r) {
-    const q = r.lat + '%2C' + r.lon;
     return '<tr>' +
       '<td' + (r.address ? '' : ' class="muted"') + '>' + (r.address ? esc(r.address) : 'без адреса') + '</td>' +
       '<td class="num">' + r.lat.toFixed(6) + '</td>' +

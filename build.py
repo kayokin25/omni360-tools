@@ -126,6 +126,58 @@ UUIDS = {
 KNOWN_BUNDLE_UUIDS = set()
 
 
+PANEL_TEMPLATE = os.path.join(HERE, 'panel', 'template.html')
+
+# Точечные правки ресурсов, которые пришли из исходной панели и своего исходника
+# у нас нет (калькулятор, карта). Формат: id ресурса → список (что, на что).
+RESOURCE_PATCHES = {
+    'omnibuyTool': [
+        ('<div class="footer">omni360 · 2025</div>',
+         '<div class="footer">omni360</div>'),
+    ],
+}
+
+
+def patch_resource(res_id, html):
+    """Применяет правки из RESOURCE_PATCHES. Падает, если искомого текста нет —
+    значит ресурс изменился и правку надо пересмотреть."""
+    for old, new in RESOURCE_PATCHES.get(res_id, []):
+        if old not in html:
+            raise SystemExit(
+                f'{res_id}: не нашёл текст для правки:\n  {old}\n'
+                'Похоже, ресурс в исходной панели изменился — поправьте RESOURCE_PATCHES.')
+        html = html.replace(old, new)
+        print(f'  ~ {res_id}: {old[:46]}… → {new[:46]}…')
+    return html
+
+
+def build_panel_template(orig_template):
+    """Наш шаблон панели + подстановки из исходного.
+
+    Из исходника берём ровно две вещи: uuid рантайма x-dc (его подменяет на blob
+    сам загрузчик панели) и значение data-props (описание свойств для редактора).
+    """
+    tpl = read(PANEL_TEMPLATE)
+
+    m = re.search(r'<script src="([0-9a-f-]{36})"></script>', orig_template)
+    if not m:
+        raise SystemExit('не нашёл в исходном шаблоне подключение рантайма x-dc')
+    runtime_uuid = m.group(1)
+
+    m = re.search(r'data-props="([^"]*)"', orig_template)
+    if not m:
+        raise SystemExit('не нашёл в исходном шаблоне data-props')
+    dc_props = m.group(1)
+
+    for token, value in (('__DC_RUNTIME__', runtime_uuid), ('__DC_PROPS__', dc_props)):
+        if token not in tpl:
+            raise SystemExit(f'{PANEL_TEMPLATE}: нет метки {token}')
+        tpl = tpl.replace(token, value)
+
+    print(f'  шаблон панели: panel/template.html (рантайм {runtime_uuid[:8]}…)')
+    return tpl
+
+
 def make_bundle(built):
     """Собирает панель, встраивая переданные HTML инструментов. Возвращает текст файла."""
     lines = read(SRC_BUNDLE).split('\n')
@@ -167,37 +219,29 @@ def make_bundle(built):
         else:
             ext.append({'id': res_id, 'uuid': uuid})
 
-    # ── шаблон: карточки трёх инструментов получают src вместо note ──
-    replacements = [
-        (
-            "{ id:'techreq', name:'Сбор технических требований', desc:'Сбор ТТ по адресной программе', "
-            "type:'internal', letter:'Т', note:'Скрипт на Python. Загрузите адресную программу — "
-            "инструмент подготовит техтребования для площадок.' }",
-            "{ id:'techreq', name:'Сбор технических требований', desc:'Длительности роликов и ссылки "
-            "на ТТ по адресной программе', type:'internal', get src(){ return window.__resources ? "
-            "window.__resources.techreqTool : 'techreq.html'; }, letter:'Т' }"
-        ),
-        (
-            "{ id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива "
-            "по адресной программе', type:'internal', letter:'С', note:'Скрипт на Python. Нужны: архив "
-            "с креативами и адресная программа — на выходе только нужные для загрузки файлы.' }",
-            "{ id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива "
-            "по адресной программе', type:'internal', get src(){ return window.__resources ? "
-            "window.__resources.creativesTool : 'creatives.html'; }, letter:'С' }"
-        ),
-        (
-            "{ id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', "
-            "type:'internal', letter:'А', note:'Скрипт на Python. На входе — запрос + город, на выходе — "
-            "список POI из 2ГИС для импорта.' }",
-            "{ id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', "
-            "type:'internal', get src(){ return window.__resources ? "
-            "window.__resources.addressesTool : 'addresses.html'; }, letter:'А' }"
-        ),
-    ]
-    for old, new in replacements:
-        if old not in template:
-            raise SystemExit('не нашёл в шаблоне строку карточки:\n' + old[:120])
-        template = template.replace(old, new, 1)
+    # ── правки ресурсов, пришедших из исходной панели (калькулятор, карта) ──
+    id_by_uuid = {e['uuid']: e['id'] for e in ext}
+    for uuid, entry in manifest.items():
+        res_id = id_by_uuid.get(uuid)
+        if res_id not in RESOURCE_PATCHES:
+            continue
+        raw = base64.b64decode(entry['data'])
+        if entry.get('compressed'):
+            raw = gzip.decompress(raw)
+        patched = patch_resource(res_id, raw.decode('utf-8')).encode('utf-8')
+        entry['data'] = base64.b64encode(gzip.compress(patched, 9, mtime=0)).decode('ascii')
+        entry['compressed'] = True
+
+    # ── шаблон панели целиком берём из panel/template.html ──
+    template = build_panel_template(template)
+
+    # каждый window.__resources.X должен существовать в ext_resources,
+    # иначе карточка молча откроется пустой
+    available = {e['id'] for e in ext}
+    for ref in sorted(set(re.findall(r'window\.__resources\.(\w+)', template))):
+        if ref not in available:
+            raise SystemExit(f'шаблон ссылается на ресурс {ref}, которого нет в ext_resources')
+    print(f'  ресурсы шаблона на месте: {len(available)}')
 
     def dump(obj):
         """JSON для вставки внутрь <script>…</script>.

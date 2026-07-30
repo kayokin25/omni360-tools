@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+<script src="__DC_RUNTIME__"></script>
+
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics="">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Движок НЕ подставляет {{ }} внутрь style-hover: интерполированные значения
+     просто выпадают из правила (проверено — оставался только статический
+     transform). Поэтому цвета для :hover идут через CSS-переменные, а тему
+     переключает атрибут data-theme на <html>. */
+  :root{
+    --om-accent:#00c6ff; --om-text:#f1f5f9; --om-link:#4f8cff;
+    --om-link-hover:#7bed9f; --om-ext-accent:#a78bfa;
+  }
+  :root[data-theme="light"]{
+    --om-accent:#0284c7; --om-text:#0f172a; --om-link:#0369a1;
+    --om-link-hover:#15803d; --om-ext-accent:#7c3aed;
+  }
+  @keyframes om-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  a{color:var(--om-link);text-decoration:none}
+  a:hover{color:var(--om-link-hover)}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:{{ cBg }};color:{{ cText }};padding:36px 24px 64px;transition:background .2s,color .2s">
+  <div style="max-width:1100px;margin:0 auto">
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,{{ accentFrom }},{{ accentTo }})"></div>
+      <div style="font-size:19px;font-weight:700;background:linear-gradient(90deg,{{ cAccentTextFrom }},{{ cAccentTextTo }});-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Omni360</div>
+      <div style="margin-left:auto">
+        <button sc-camel-on-click="{{ toggleTheme }}" title="{{ themeTitle }}" style="background:{{ cChipBg }};border:1px solid {{ cLine }};color:{{ cMuted }};height:30px;padding:0 12px;border-radius:9px;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;gap:7px;font-family:inherit" style-hover="border-color:var(--om-accent);color:var(--om-text)">
+          <span style="font-size:14px">{{ themeIcon }}</span>
+          <span style="font-size:12px;font-weight:500">{{ themeLabel }}</span>
+        </button>
+      </div>
+    </div>
+    <h1 style="font-size:26px;font-weight:700;margin:22px 0 6px;color:{{ cText }}">Инструменты для ведения кампаний</h1>
+    <p style="font-size:14px;color:{{ cMuted }};margin:0 0 32px">Внутренние инструменты открываются прямо здесь, внешние — в новой вкладке</p>
+
+    <sc-if value="{{ hasPinned }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-bottom:{{ sectionGap }}">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:{{ cDim }};margin-bottom:14px">Закреплённые</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:{{ cardGap }}">
+          <sc-for list="{{ pinnedTools }}" as="tool" hint-placeholder-count="2">
+            <div style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#0a0e1a;background:{{ tool.iconBg }}">{{ tool.letter }}</div>
+                <button sc-camel-on-click="{{ tool.handleTogglePin }}" title="Закрепить" style="background:transparent;border:none;color:{{ tool.starColor }};font-size:16px;cursor:pointer;padding:4px;line-height:1">{{ tool.starChar }}</button>
+              </div>
+              <div>
+                <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
+                <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+                <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
+                <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:{{ cDim }};margin-bottom:14px">Открываются в панели</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:{{ cardGap }}">
+      <sc-for list="{{ internalTools }}" as="tool" hint-placeholder-count="4">
+        <div style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#0a0e1a;background:{{ tool.iconBg }}">{{ tool.letter }}</div>
+            <button sc-camel-on-click="{{ tool.handleTogglePin }}" title="Закрепить" style="background:transparent;border:none;color:{{ tool.starColor }};font-size:16px;cursor:pointer;padding:4px;line-height:1">{{ tool.starChar }}</button>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
+            <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+            <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
+            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:9px;margin:{{ sectionGap }} 0 14px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:{{ cDim }}">Внешние сервисы</div>
+      <div style="flex:1;height:1px;background:{{ cLine }}"></div>
+      <div style="font-size:11px;color:{{ cDim }}">откроются в новой вкладке</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:{{ cardGap }}">
+      <sc-for list="{{ externalTools }}" as="tool" hint-placeholder-count="2">
+        <div style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-ext-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:{{ cExtIconText }};background:{{ tool.iconBg }};border:1px dashed {{ cExtAccent }}">{{ tool.letter }}</div>
+            <button sc-camel-on-click="{{ tool.handleTogglePin }}" title="Закрепить" style="background:transparent;border:none;color:{{ tool.starColor }};font-size:16px;cursor:pointer;padding:4px;line-height:1">{{ tool.starChar }}</button>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
+            <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+            <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
+            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="margin-top:40px;text-align:center;font-size:11px;color:{{ cFooter }}">omni360 · отдел по ведению РК</div>
+  </div>
+</div>
+
+<sc-if value="{{ activeTool }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:{{ cOverlay }};backdrop-filter:blur(3px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:28px;animation:om-fade .15s ease" sc-camel-on-click="{{ closeModalBackdrop }}">
+    <div style="width:100%;max-width:1100px;height:85vh;background:{{ cCard }};border:1px solid {{ cLine }};border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:{{ cShadow }}" sc-camel-on-click="{{ stopProp }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:{{ cChipBg }};border-bottom:1px solid {{ cLine }}">
+        <div style="font-size:14px;font-weight:600;color:{{ cText }}">{{ activeTool.name }}</div>
+        <button sc-camel-on-click="{{ closeModal }}" style="background:{{ cBtnBg }};border:1px solid {{ cBtnLine }};color:{{ cMuted }};width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1" style-hover="color:var(--om-text);border-color:var(--om-accent)">✕</button>
+      </div>
+      <sc-if value="{{ activeToolSrc }}" hint-placeholder-val="{{ true }}">
+        <iframe src="{{ activeToolSrc }}" style="flex:1;border:none;background:{{ cBg }}"></iframe>
+      </sc-if>
+      <sc-if value="{{ activeToolNoteVisible }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px;background:{{ cBg }}">
+          <div style="max-width:480px;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center">
+            <div style="width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#0a0e1a;background:linear-gradient(135deg,{{ accentFrom }},{{ accentTo }})">{{ activeTool.letter }}</div>
+            <div style="font-size:13px;color:{{ cDesc }};line-height:1.6">{{ activeTool.note }}</div>
+            <div style="font-size:11px;color:{{ cDim }}">Пока без веб-интерфейса — подключим по готовности скрипта.</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="__DC_PROPS__">
+const TOOLS = [
+  { id:'map', name:'Карта-компаньон', desc:'Проверка инвентаря по картам и адресам', type:'internal', get src(){ return window.__resources ? window.__resources.mapTool : 'map-companion.html'; }, letter:'К' },
+  { id:'omnibuy', name:'OmniBuy — калькулятор надбавки', desc:'Расчёт надбавки и разбивка заработка по СК', type:'internal', get src(){ return window.__resources ? window.__resources.omnibuyTool : 'omnibuy-calculator.html'; }, letter:'O' },
+  { id:'techreq', name:'Сбор технических требований', desc:'Длительности роликов и ссылки на ТТ по адресной программе', type:'internal', get src(){ return window.__resources ? window.__resources.techreqTool : 'techreq.html'; }, letter:'Т' },
+  { id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива по адресной программе', type:'internal', get src(){ return window.__resources ? window.__resources.creativesTool : 'creatives.html'; }, letter:'С' },
+  { id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', type:'internal', get src(){ return window.__resources ? window.__resources.addressesTool : 'addresses.html'; }, letter:'А' },
+  { id:'monitoring', name:'Мониторинг кампаний', desc:'Статусы и показатели активных кампаний', type:'external', url:'https://leafy-salmiakki-19a465.netlify.app/', letter:'М' },
+  { id:'planner', name:'Планировщик', desc:'Планирование размещений и медиапланов', type:'external', url:'https://omni360.adtech.systems/page103658706.html', letter:'П' }
+];
+
+/* Палитры. Тёмная — как было; светлая подобрана под тот же акцент.
+   Для градиентного текста в светлой теме нужны более тёмные оттенки:
+   #7bed9f на белом читается плохо. */
+const THEMES = {
+  dark: {
+    cBg:'#0a0e1a', cText:'#f1f5f9', cCard:'#111827', cLine:'#1e293b',
+    cMuted:'#64748b', cDim:'#475569', cDesc:'#94a3b8', cChipBg:'#0f172a',
+    cFooter:'#334155', cOverlay:'rgba(4,6,12,.72)', cShadow:'0 24px 80px rgba(0,0,0,.6)',
+    cBtnBg:'#1e293b', cBtnLine:'#334155',
+    cAccentTextFrom:'#00c6ff', cAccentTextTo:'#7bed9f',
+    cExtCard:'#0e1421', cExtLine:'#2a3550', cExtAccent:'#a78bfa',
+    cExtChipBg:'#1a1533', cExtChipLine:'#3b2f6b', cExtChipText:'#c4b5fd',
+    cExtIconBg:'linear-gradient(135deg,#312e5f,#1f2544)', cExtIconText:'#ddd6fe',
+    cExtLink:'#a78bfa'
+  },
+  light: {
+    cBg:'#eef2f7', cText:'#0f172a', cCard:'#ffffff', cLine:'#dbe3ec',
+    cMuted:'#64748b', cDim:'#94a3b8', cDesc:'#475569', cChipBg:'#f6f8fb',
+    cFooter:'#94a3b8', cOverlay:'rgba(15,23,42,.42)', cShadow:'0 24px 80px rgba(15,23,42,.18)',
+    cBtnBg:'#f1f5f9', cBtnLine:'#dbe3ec',
+    cAccentTextFrom:'#0284c7', cAccentTextTo:'#15803d',
+    cExtCard:'#faf7ff', cExtLine:'#d9cdf5', cExtAccent:'#7c3aed',
+    cExtChipBg:'#f3ecff', cExtChipLine:'#ddd0fb', cExtChipText:'#6d28d9',
+    cExtIconBg:'linear-gradient(135deg,#ede9fe,#e0e7ff)', cExtIconText:'#4c1d95',
+    cExtLink:'#6d28d9'
+  }
+};
+
+const THEME_KEY = 'omni360.theme';
+
+class Component extends DCLogic {
+  state = { pinned: {}, activeToolId: null, theme: readTheme() };
+
+  toggleFavorite = (id) => {
+    this.setState(s => ({ pinned: { ...s.pinned, [id]: !s.pinned[id] } }));
+  };
+
+  toggleTheme = () => {
+    this.setState(s => {
+      const theme = s.theme === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* приватный режим */ }
+      applyThemeAttr(theme);
+      // открытому инструменту сообщаем смену темы, чтобы он не перезагружался
+      // и не терял результаты
+      for (const f of document.querySelectorAll('iframe')) {
+        try { f.contentWindow.postMessage({ omniTheme: theme }, '*'); } catch (e) { /* нет доступа */ }
+      }
+      return { theme };
+    });
+  };
+
+  openTool = (tool) => {
+    if (tool.type === 'internal') {
+      this.setState({ activeToolId: tool.id });
+    } else {
+      window.open(tool.url, '_blank', 'noopener');
+    }
+  };
+
+  closeModal = () => this.setState({ activeToolId: null });
+  closeModalBackdrop = () => this.closeModal();
+  stopProp = (e) => e.stopPropagation();
+
+  renderVals() {
+    const density = this.props.density ?? 'comfortable';
+    const compact = density === 'compact';
+    const accentFrom = this.props.accentFrom ?? '#00c6ff';
+    const accentTo = this.props.accentTo ?? '#7bed9f';
+    const pinned = this.state.pinned;
+    const theme = this.state.theme === 'light' ? 'light' : 'dark';
+    const c = THEMES[theme];
+
+    const decorate = (t) => {
+      const isPinned = !!pinned[t.id];
+      const ext = t.type === 'external';
+      return { ...t, isPinned,
+        starChar: isPinned ? '★' : '☆',
+        starColor: isPinned ? '#f59e0b' : c.cDim,
+        typeLabel: ext ? 'Внешний' : 'Внутренний',
+        openLabel: ext ? 'Открыть ↗' : 'Открыть →',
+        cardBg: ext ? c.cExtCard : c.cCard,
+        borderColor: ext ? c.cExtLine : c.cLine,
+        borderStyle: ext ? 'dashed' : 'solid',
+        iconBg: ext ? c.cExtIconBg : `linear-gradient(135deg,${accentFrom},${accentTo})`,
+        chipBg: ext ? c.cExtChipBg : c.cChipBg,
+        chipLine: ext ? c.cExtChipLine : c.cLine,
+        chipText: ext ? c.cExtChipText : c.cMuted,
+        linkColor: ext ? c.cExtLink : accentFrom,
+        handleOpen: () => this.openTool(t),
+        handleTogglePin: (e) => { e.stopPropagation(); this.toggleFavorite(t.id); }
+      };
+    };
+
+    const allTools = TOOLS.map(decorate);
+    const activeTool = this.state.activeToolId
+      ? TOOLS.find(t => t.id === this.state.activeToolId)
+      : null;
+
+    // Тему передаём инструменту через #hash: он применит её сразу, без мигания
+    let activeToolSrc = '';
+    if (activeTool && activeTool.src) {
+      activeToolSrc = activeTool.src + '#theme=' + theme;
+    }
+
+    return {
+      allTools,
+      internalTools: allTools.filter(t => t.type === 'internal'),
+      externalTools: allTools.filter(t => t.type === 'external'),
+      pinnedTools: allTools.filter(t => t.isPinned),
+      hasPinned: allTools.some(t => t.isPinned),
+      activeTool,
+      activeToolSrc,
+      activeToolNoteVisible: !!(activeTool && !activeTool.src),
+      accentFrom,
+      accentTo,
+      themeIcon: theme === 'dark' ? '☀' : '☾',
+      themeLabel: theme === 'dark' ? 'Светлая' : 'Тёмная',
+      themeTitle: theme === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему',
+      ...c,
+      cardGap: compact ? '12px' : '20px',
+      cardPadding: compact ? '14px' : '20px',
+      sectionGap: compact ? '24px' : '36px',
+      toggleFavorite: this.toggleFavorite,
+      toggleTheme: this.toggleTheme,
+      openTool: this.openTool,
+      closeModal: this.closeModal,
+      closeModalBackdrop: this.closeModalBackdrop,
+      stopProp: this.stopProp
+    };
+  }
+}
+
+function readTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch (e) { /* приватный режим */ }
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+  } catch (e) { /* нет matchMedia */ }
+  return 'dark';
+}
+
+/* Атрибут на <html> нужен CSS-переменным из helmet: через них заданы цвета
+   :hover, куда интерполяция {{ }} не доходит. */
+function applyThemeAttr(theme) {
+  try {
+    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+  } catch (e) { /* документа ещё нет */ }
+}
+
+applyThemeAttr(readTheme());
+</script>
+
+
+</body></html>
