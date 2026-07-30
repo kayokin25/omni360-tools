@@ -112,12 +112,42 @@
     </div>
   </div>
 
+  <div id="historyBlock" style="display:none">
+    <div class="divider"></div>
+    <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <div class="section-label" style="margin:0">История запросов</div>
+      <div class="hint" style="margin:0" id="historyHint"></div>
+    </div>
+    <div class="table-wrap" style="max-height:260px;margin-top:12px">
+      <table>
+        <thead><tr>
+          <th style="width:1%"><input type="checkbox" id="histAll" title="выделить все"
+              style="width:auto;accent-color:var(--accent);cursor:pointer"></th>
+          <th>Запрос</th><th>Город</th><th>Объектов</th><th>Когда</th><th></th>
+        </tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn" id="histMerge" disabled>Объединить и скачать</button>
+      <button class="btn ghost" id="histDelete" disabled>Удалить выбранные</button>
+      <button class="btn ghost" id="histClear">Очистить историю</button>
+    </div>
+    <div id="histNotes" style="margin-top:12px"></div>
+  </div>
+
   <div class="footer">omni360 · отдел по ведению РК · данные © 2ГИС, OpenStreetMap</div>
 </div>
 </div>
 
 <script>
 /*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:merge-core.js__*/
+</script>
+<script>
+/*__INJECT:history.js__*/
 </script>
 <script>
 /*__INJECT:addresses-core.js__*/
@@ -247,6 +277,7 @@ $('go').addEventListener('click', async function () {
     log('С адресом: ' + result.withAddress + ', без адреса: ' + result.withoutAddress);
     progress(false);
     render(cfg);
+    rememberRun(cfg, result);
   } catch (e) {
     progress(false);
     log('Ошибка: ' + e.message, 'err');
@@ -343,6 +374,187 @@ $('copy').addEventListener('click', async function () {
 ['query', 'city'].forEach(function (id) {
   $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
 });
+
+/* ──────────────────────────── история запросов ────────────────────────────
+   Живёт в localStorage, чтобы F5 не стирал сделанную работу, но недолго:
+   неделя, 20 записей и лимит по объёму — дальше самое старое вытесняется.
+   Выделенные записи склеиваются в один файл тем же ядром, что и инструмент
+   «Объединение таблиц». */
+const H = window.OmniHistory.create('omni360.addresses.history');
+const M = window.MergeCore;
+const HEADER = ['Название', 'Широта', 'Долгота'];
+let selected = new Set();
+
+function plural(n, one, few, many) {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return few;
+  return many;
+}
+
+function rememberRun(cfg, res) {
+  if (!res.results.length) return;
+  const id = H.add({
+    query: cfg.QUERY,
+    city: cfg.CITY,
+    count: res.results.length,
+    grid: cfg.GRID,
+    results: res.results.map(function (r) { return [r.address, r.lat, r.lon]; })
+  });
+  if (!id) log('Не удалось сохранить в историю — в браузере не хватило места', 'warn');
+  renderHistory();
+}
+
+function renderHistory() {
+  const items = H.list();
+  $('historyBlock').style.display = items.length ? '' : 'none';
+  if (!items.length) { selected.clear(); return; }
+
+  // выделения с удалённых записей снимаем
+  const alive = new Set(items.map(function (it) { return it.id; }));
+  selected = new Set([...selected].filter(function (id) { return alive.has(id); }));
+
+  const lim = H.limits;
+  $('historyHint').textContent = 'хранится ' + items.length + ' из ' + lim.maxItems +
+    ', до ' + lim.maxDays + ' дней · ' + Math.round(H.bytes() / 1024) + ' КБ';
+
+  $('histBody').innerHTML = items.map(function (it) {
+    const on = selected.has(it.id);
+    return '<tr' + (on ? ' class="ok"' : '') + '>' +   /* дальше ведёт updateSelectionUI */
+      '<td><input type="checkbox" data-id="' + it.id + '"' + (on ? ' checked' : '') +
+        ' style="width:auto;accent-color:var(--accent);cursor:pointer"></td>' +
+      '<td>' + esc(it.query) + '</td>' +
+      '<td class="nowrap">' + esc(it.city) + '</td>' +
+      '<td class="num">' + it.count + '</td>' +
+      '<td class="nowrap muted">' + esc(window.OmniHistory.timeAgo(it.at)) + '</td>' +
+      '<td class="nowrap"><a href="#" data-show="' + it.id + '">показать</a></td>' +
+      '</tr>';
+  }).join('');
+
+  [...$('histBody').querySelectorAll('input[data-id]')].forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      if (cb.checked) selected.add(cb.dataset.id); else selected.delete(cb.dataset.id);
+      // Только подсветка и кнопки: перестраивать список нельзя — галочка, по
+      // которой только что щёлкнули, заменилась бы на новый элемент.
+      updateSelectionUI();
+    });
+  });
+  [...$('histBody').querySelectorAll('a[data-show]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      showFromHistory(a.dataset.show);
+    });
+  });
+  updateSelectionUI();
+}
+
+/* Подсветка строк и состояние кнопок по текущему выделению.
+   Список при этом не пересобирается. */
+function updateSelectionUI() {
+  const boxes = [...$('histBody').querySelectorAll('input[data-id]')];
+  const n = selected.size;
+  for (const cb of boxes) {
+    const on = selected.has(cb.dataset.id);
+    cb.checked = on;
+    const tr = cb.closest('tr');
+    if (tr) tr.className = on ? 'ok' : '';
+  }
+  $('histMerge').disabled = n < 1;
+  $('histDelete').disabled = n < 1;
+  $('histMerge').textContent = n > 1 ? 'Объединить ' + n + ' и скачать'
+    : (n === 1 ? 'Скачать выбранный' : 'Объединить и скачать');
+  $('histAll').checked = boxes.length > 0 && n === boxes.length;
+  $('histAll').indeterminate = n > 0 && n < boxes.length;
+}
+
+$('histAll').addEventListener('change', function () {
+  const ids = [...$('histBody').querySelectorAll('input[data-id]')]
+    .map(function (cb) { return cb.dataset.id; });
+  selected = $('histAll').checked ? new Set(ids) : new Set();
+  updateSelectionUI();
+});
+
+/* Показать сохранённый прогон в основной таблице. */
+function showFromHistory(id) {
+  const it = H.get(id);
+  if (!it) return;
+  const rows = it.results.map(function (r) { return { address: r[0], lat: r[1], lon: r[2] }; });
+  result = {
+    center: { displayName: it.city },
+    total: null,
+    results: rows,
+    fromWide: rows.length,
+    fromGrid: 0,
+    sectors: 0,
+    requests: 0,
+    withAddress: rows.filter(function (r) { return r.address; }).length,
+    withoutAddress: rows.filter(function (r) { return !r.address; }).length,
+    truncated: false,
+    error: null,
+    fromHistory: true
+  };
+  $('query').value = it.query;
+  $('city').value = it.city;
+  render({ GRID: it.grid || 0, RADIUS: A.DEFAULTS.RADIUS, MAX_RESULTS: rows.length });
+  $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('histDelete').addEventListener('click', function () {
+  H.remove([...selected]);
+  selected.clear();
+  renderHistory();
+});
+
+$('histClear').addEventListener('click', function () {
+  H.clear();
+  selected.clear();
+  $('histNotes').innerHTML = '';
+  renderHistory();
+});
+
+$('histMerge').addEventListener('click', function () {
+  const items = H.list().filter(function (it) { return selected.has(it.id); });
+  if (!items.length) return;
+
+  // в файле удобнее от старых к новым
+  items.sort(function (a, b) { return a.at - b.at; });
+
+  const tables = items.map(function (it) {
+    return {
+      name: it.city + ' - ' + it.query,
+      header: HEADER.slice(),
+      data: it.results.map(function (r) { return [r[0], r[1], r[2]]; })
+    };
+  });
+
+  // дубли тут осмысленны: один объект мог попасть в два разных запроса
+  const merged = M.mergeTables(tables, {
+    matchBy: 'name',
+    dedupe: true,
+    addSource: items.length > 1,
+    emptyPlaceholder: true
+  });
+
+  const cities = [...new Set(items.map(function (it) { return it.city; }))];
+  const queries = [...new Set(items.map(function (it) { return it.query; }))];
+  let name;
+  if (items.length === 1) name = items[0].city + ' - ' + items[0].query;
+  else if (cities.length === 1) name = cities[0] + ' - объединено';
+  else if (queries.length === 1) name = queries[0] + ' - ' + cities.length + ' города';
+  else name = 'Адреса - объединено';
+  name = name.replace(/[\\/:*?"<>|]/g, '_') + '.xlsx';
+
+  L.download(L.writeXlsx(M.buildReport(merged, { sheetName: 'Все результаты' })), name);
+
+  $('histNotes').innerHTML = '<div class="note ok">Скачан <b>' + esc(name) + '</b>: ' +
+    merged.rows.length + ' ' + plural(merged.rows.length, 'строка', 'строки', 'строк') +
+    ' из ' + items.length + ' ' + plural(items.length, 'запроса', 'запросов', 'запросов') +
+    (merged.removed
+      ? '. Совпадающих объектов убрано: ' + merged.removed + '.'
+      : '.') + '</div>';
+});
+
+renderHistory();
 
 })();
 </script>

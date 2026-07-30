@@ -427,6 +427,30 @@ root.OmniTheme = {
     </div>
   </div>
 
+  <div id="historyBlock" style="display:none">
+    <div class="divider"></div>
+    <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+      <div class="section-label" style="margin:0">История запросов</div>
+      <div class="hint" style="margin:0" id="historyHint"></div>
+    </div>
+    <div class="table-wrap" style="max-height:260px;margin-top:12px">
+      <table>
+        <thead><tr>
+          <th style="width:1%"><input type="checkbox" id="histAll" title="выделить все"
+              style="width:auto;accent-color:var(--accent);cursor:pointer"></th>
+          <th>Запрос</th><th>Город</th><th>Объектов</th><th>Когда</th><th></th>
+        </tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn" id="histMerge" disabled>Объединить и скачать</button>
+      <button class="btn ghost" id="histDelete" disabled>Удалить выбранные</button>
+      <button class="btn ghost" id="histClear">Очистить историю</button>
+    </div>
+    <div id="histNotes" style="margin-top:12px"></div>
+  </div>
+
   <div class="footer">omni360 · отдел по ведению РК · данные © 2ГИС, OpenStreetMap</div>
 </div>
 </div>
@@ -1227,6 +1251,373 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
 
 </script>
 <script>
+/* ============================================================================
+   Объединение таблиц (порт merge.py, но без привязки к трём колонкам адресов).
+
+   merge.py умел ровно одно: склеить файлы вида «Название / Широта / Долгота»,
+   взяв шапку из первого и дальше копируя строки по позициям. Здесь то же, но
+   столбцы по умолчанию сопоставляются ПО НАЗВАНИЮ — тогда файл с другим
+   порядком колонок не превратится в кашу.
+
+   Зависит от OmniLib.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const L = root.OmniLib;
+
+/* Колонки с координатами показываем с шестью знаками — как в merge.py. */
+const COORD_RE = /(широт|долгот|\blat\b|\blon\b|\blng\b|latitude|longitude)/i;
+
+/* Ключ для сравнения строк. NUL как разделитель: в данных его быть не может,
+   поэтому «а|б» и «а», «б» не дадут один и тот же ключ. */
+const KEY_SEP = String.fromCharCode(0);
+
+const DEFAULTS = {
+  matchBy: 'name',          // 'name' | 'position'
+  addSource: false,         // добавить столбец с именем файла
+  dedupe: false,            // убрать полные дубли строк
+  emptyPlaceholder: true,   // пустое первое поле → 'empty' (поведение merge.py)
+  sheetName: 'Объединено'
+};
+
+function cellStr(v) {
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+
+function rowIsEmpty(row) {
+  for (const v of row) if (v !== null && v !== undefined && String(v).trim() !== '') return false;
+  return true;
+}
+
+/* Шапка — первая непустая строка листа; дальше данные. */
+function splitHeader(rows) {
+  let i = 0;
+  while (i < rows.length && rowIsEmpty(rows[i] || [])) i++;
+  if (i >= rows.length) return { header: [], data: [] };
+  const header = (rows[i] || []).map(cellStr);
+  // отрезаем хвост пустых заголовков
+  while (header.length && header[header.length - 1] === '') header.pop();
+  const data = [];
+  for (let j = i + 1; j < rows.length; j++) {
+    const row = rows[j] || [];
+    if (rowIsEmpty(row)) continue;
+    data.push(row);
+  }
+  return { header: header, data: data };
+}
+
+/* Читает файлы → [{name, header, data, sheetName, error}]. Берём первый лист,
+   как это делал wb.active в merge.py. */
+async function readTables(files, onProgress) {
+  const out = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (onProgress) onProgress(i, files.length, f.name);
+    try {
+      const wb = await L.readXlsx(L.blobSource(f));
+      if (!wb.sheets.length) throw new Error('в файле нет листов');
+      const sheet = wb.sheets[0];
+      const split = splitHeader(sheet.rows);
+      out.push({
+        name: f.name,
+        sheetName: sheet.name,
+        sheetCount: wb.sheets.length,
+        header: split.header,
+        data: split.data
+      });
+    } catch (e) {
+      out.push({ name: f.name, error: e.message, header: [], data: [] });
+    }
+  }
+  if (onProgress) onProgress(files.length, files.length, '');
+  return out;
+}
+
+/* Склейка. tables — из readTables (или собранные вручную: {name, header, data}). */
+function mergeTables(tables, options) {
+  const opt = Object.assign({}, DEFAULTS, options || {});
+  const good = tables.filter(function (t) { return !t.error; });
+  const warnings = [];
+
+  for (const t of tables) {
+    if (t.error) warnings.push('«' + t.name + '»: не прочитался — ' + t.error);
+    else if (t.sheetCount > 1) {
+      warnings.push('«' + t.name + '»: листов ' + t.sheetCount +
+                    ', взят первый («' + t.sheetName + '»)');
+    }
+  }
+  if (!good.length) {
+    return { header: [], rows: [], perFile: [], warnings: warnings,
+             duplicateRows: 0, removed: 0, columnsAdded: [] };
+  }
+
+  // ── итоговый набор столбцов ──
+  let header;
+  const columnsAdded = [];
+  if (opt.matchBy === 'name') {
+    header = good[0].header.slice();
+    const seen = new Set(header.map(function (h) { return h.toLowerCase(); }));
+    for (const t of good.slice(1)) {
+      for (const h of t.header) {
+        if (!h) continue;
+        const k = h.toLowerCase();
+        if (!seen.has(k)) {
+          seen.add(k);
+          header.push(h);
+          columnsAdded.push(h + ' (из «' + t.name + '»)');
+        }
+      }
+    }
+  } else {
+    let width = 0;
+    for (const t of good) {
+      width = Math.max(width, t.header.length);
+      for (const r of t.data) width = Math.max(width, r.length);
+    }
+    header = good[0].header.slice();
+    while (header.length < width) header.push('');
+  }
+
+  const indexByName = new Map();
+  header.forEach(function (h, i) { if (h) indexByName.set(h.toLowerCase(), i); });
+
+  // ── строки ──
+  const rows = [];
+  const perFile = [];
+  // Дубли считаем ВСЕГДА, даже когда не убираем: именно так видно, что на вход
+  // случайно попал прошлый результат склейки (в исходном merge.py такой файл
+  // молча удваивал таблицу).
+  const seenRows = new Set();
+  let duplicateRows = 0;
+  let removed = 0;
+
+  for (const t of good) {
+    // как столбцы файла ложатся в итоговые
+    let map;
+    if (opt.matchBy === 'name') {
+      map = t.header.map(function (h) {
+        const i = h ? indexByName.get(h.toLowerCase()) : undefined;
+        return i === undefined ? -1 : i;
+      });
+    } else {
+      map = header.map(function (_, i) { return i; });
+    }
+
+    let added = 0;
+    for (const src of t.data) {
+      const row = new Array(header.length).fill('');
+      if (opt.matchBy === 'name') {
+        for (let c = 0; c < src.length; c++) {
+          const to = c < map.length ? map[c] : -1;
+          if (to >= 0) row[to] = src[c] === undefined ? '' : src[c];
+        }
+      } else {
+        for (let c = 0; c < src.length && c < row.length; c++) {
+          row[c] = src[c] === undefined ? '' : src[c];
+        }
+      }
+
+      // поведение merge.py: первое поле пустое, а остальные нет → 'empty'
+      if (opt.emptyPlaceholder && cellStr(row[0]) === '') {
+        let hasRest = false;
+        for (let c = 1; c < row.length; c++) if (cellStr(row[c]) !== '') { hasRest = true; break; }
+        if (hasRest) row[0] = 'empty';
+      }
+
+      const key = row.map(cellStr).join(KEY_SEP);
+      const isDupe = seenRows.has(key);
+      if (isDupe) duplicateRows++;
+      else seenRows.add(key);
+      if (isDupe && opt.dedupe) { removed++; continue; }
+
+      rows.push({ values: row, source: t.name });
+      added++;
+    }
+    perFile.push({ name: t.name, rows: added, columns: t.header.length });
+  }
+
+  return {
+    header: header,
+    rows: rows,
+    perFile: perFile,
+    warnings: warnings,
+    duplicateRows: duplicateRows,
+    removed: removed,
+    columnsAdded: columnsAdded,
+    options: opt
+  };
+}
+
+/* Готовит лист для writeXlsx. */
+function buildReport(merged, options) {
+  const opt = Object.assign({}, DEFAULTS, merged.options || {}, options || {});
+  const header = merged.header.slice();
+  if (opt.addSource) header.push('Файл-источник');
+
+  const coordCols = new Set();
+  header.forEach(function (h, i) { if (COORD_RE.test(h)) coordCols.add(i); });
+
+  const rows = [header];
+  for (const r of merged.rows) {
+    const values = r.values.slice();
+    if (opt.addSource) values.push(r.source);
+    rows.push(values.map(function (v, i) {
+      if (coordCols.has(i) && typeof v === 'number') return { v: v, s: L.S.NUM6 };
+      return v;
+    }));
+  }
+
+  const cols = header.map(function (h, i) {
+    if (coordCols.has(i)) return 14;
+    return i === 0 ? 70 : 22;
+  });
+
+  return [{ name: String(opt.sheetName || 'Объединено').slice(0, 31), cols: cols, rows: rows }];
+}
+
+root.MergeCore = {
+  DEFAULTS: DEFAULTS,
+  readTables: readTables,
+  mergeTables: mergeTables,
+  buildReport: buildReport,
+  splitHeader: splitHeader
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.MergeCore;
+
+</script>
+<script>
+/* ============================================================================
+   Короткая история результатов в localStorage.
+
+   Задача: после F5 результаты не теряются, но и складом это не становится.
+   Поэтому три ограничителя сразу — по возрасту, по количеству и по объёму
+   (localStorage на origin обычно ~5 МБ, и его делят все инструменты панели).
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const DEFAULTS = {
+  maxItems: 20,
+  maxDays: 7,
+  maxBytes: 1500000   // ~1,5 МБ на одну историю
+};
+
+function create(key, options) {
+  const opt = Object.assign({}, DEFAULTS, options || {});
+
+  function readRaw() {
+    try {
+      const s = localStorage.getItem(key);
+      if (!s) return [];
+      const j = JSON.parse(s);
+      return Array.isArray(j) ? j : [];
+    } catch (e) { return []; }   // приватный режим или битые данные
+  }
+
+  function writeRaw(items) {
+    try {
+      localStorage.setItem(key, JSON.stringify(items));
+      return true;
+    } catch (e) {
+      return false;   // квота или приватный режим
+    }
+  }
+
+  /* Убирает просроченное и лишнее. Возвращает почищенный список. */
+  function prune(items, nowMs) {
+    const now = nowMs === undefined ? Date.now() : nowMs;
+    const maxAge = opt.maxDays * 86400000;
+    let out = items
+      .filter(function (it) { return it && it.at && (now - it.at) < maxAge; })
+      .sort(function (a, b) { return b.at - a.at; })
+      .slice(0, opt.maxItems);
+
+    // объём: пока не влезаем, выкидываем самое старое
+    while (out.length > 1 && JSON.stringify(out).length > opt.maxBytes) out.pop();
+    return out;
+  }
+
+  return {
+    list: function () {
+      const items = readRaw();
+      const pruned = prune(items);
+      if (pruned.length !== items.length) writeRaw(pruned);
+      return pruned;
+    },
+
+    /* entry без id и at — проставим сами. Возвращает id или null. */
+    add: function (entry) {
+      const items = readRaw();
+      const id = 'h' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      const full = Object.assign({}, entry, { id: id, at: Date.now() });
+      let next = prune([full].concat(items));
+
+      // если запись одна и та огромная — сохранить не выйдет, честно скажем
+      if (!writeRaw(next)) {
+        while (next.length > 1) {
+          next.pop();
+          if (writeRaw(next)) return id;
+        }
+        return null;
+      }
+      return id;
+    },
+
+    get: function (id) {
+      return this.list().find(function (it) { return it.id === id; }) || null;
+    },
+
+    remove: function (ids) {
+      const kill = new Set([].concat(ids));
+      const next = readRaw().filter(function (it) { return !kill.has(it.id); });
+      writeRaw(prune(next));
+    },
+
+    clear: function () {
+      try { localStorage.removeItem(key); } catch (e) { /* и не надо */ }
+    },
+
+    bytes: function () {
+      try { return (localStorage.getItem(key) || '').length; } catch (e) { return 0; }
+    },
+
+    limits: opt
+  };
+}
+
+/* «5 минут назад», «вчера» и т.п. */
+function timeAgo(ms, nowMs) {
+  const now = nowMs === undefined ? Date.now() : nowMs;
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 60) return 'только что';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' ' + plural(m, 'минуту', 'минуты', 'минут') + ' назад';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + ' ' + plural(h, 'час', 'часа', 'часов') + ' назад';
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'вчера';
+  return d + ' ' + plural(d, 'день', 'дня', 'дней') + ' назад';
+}
+
+function plural(n, one, few, many) {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return few;
+  return many;
+}
+
+root.OmniHistory = { create: create, timeAgo: timeAgo, DEFAULTS: DEFAULTS };
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.OmniHistory;
+
+</script>
+<script>
 window.OMNI_ENDPOINTS = {"mode": "proxy", "gis": "/api/2gis", "geocode": "/api/geocode"};
 /* ============================================================================
    Подбор адресов.
@@ -1690,6 +2081,7 @@ $('go').addEventListener('click', async function () {
     log('С адресом: ' + result.withAddress + ', без адреса: ' + result.withoutAddress);
     progress(false);
     render(cfg);
+    rememberRun(cfg, result);
   } catch (e) {
     progress(false);
     log('Ошибка: ' + e.message, 'err');
@@ -1786,6 +2178,187 @@ $('copy').addEventListener('click', async function () {
 ['query', 'city'].forEach(function (id) {
   $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
 });
+
+/* ──────────────────────────── история запросов ────────────────────────────
+   Живёт в localStorage, чтобы F5 не стирал сделанную работу, но недолго:
+   неделя, 20 записей и лимит по объёму — дальше самое старое вытесняется.
+   Выделенные записи склеиваются в один файл тем же ядром, что и инструмент
+   «Объединение таблиц». */
+const H = window.OmniHistory.create('omni360.addresses.history');
+const M = window.MergeCore;
+const HEADER = ['Название', 'Широта', 'Долгота'];
+let selected = new Set();
+
+function plural(n, one, few, many) {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return few;
+  return many;
+}
+
+function rememberRun(cfg, res) {
+  if (!res.results.length) return;
+  const id = H.add({
+    query: cfg.QUERY,
+    city: cfg.CITY,
+    count: res.results.length,
+    grid: cfg.GRID,
+    results: res.results.map(function (r) { return [r.address, r.lat, r.lon]; })
+  });
+  if (!id) log('Не удалось сохранить в историю — в браузере не хватило места', 'warn');
+  renderHistory();
+}
+
+function renderHistory() {
+  const items = H.list();
+  $('historyBlock').style.display = items.length ? '' : 'none';
+  if (!items.length) { selected.clear(); return; }
+
+  // выделения с удалённых записей снимаем
+  const alive = new Set(items.map(function (it) { return it.id; }));
+  selected = new Set([...selected].filter(function (id) { return alive.has(id); }));
+
+  const lim = H.limits;
+  $('historyHint').textContent = 'хранится ' + items.length + ' из ' + lim.maxItems +
+    ', до ' + lim.maxDays + ' дней · ' + Math.round(H.bytes() / 1024) + ' КБ';
+
+  $('histBody').innerHTML = items.map(function (it) {
+    const on = selected.has(it.id);
+    return '<tr' + (on ? ' class="ok"' : '') + '>' +   /* дальше ведёт updateSelectionUI */
+      '<td><input type="checkbox" data-id="' + it.id + '"' + (on ? ' checked' : '') +
+        ' style="width:auto;accent-color:var(--accent);cursor:pointer"></td>' +
+      '<td>' + esc(it.query) + '</td>' +
+      '<td class="nowrap">' + esc(it.city) + '</td>' +
+      '<td class="num">' + it.count + '</td>' +
+      '<td class="nowrap muted">' + esc(window.OmniHistory.timeAgo(it.at)) + '</td>' +
+      '<td class="nowrap"><a href="#" data-show="' + it.id + '">показать</a></td>' +
+      '</tr>';
+  }).join('');
+
+  [...$('histBody').querySelectorAll('input[data-id]')].forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      if (cb.checked) selected.add(cb.dataset.id); else selected.delete(cb.dataset.id);
+      // Только подсветка и кнопки: перестраивать список нельзя — галочка, по
+      // которой только что щёлкнули, заменилась бы на новый элемент.
+      updateSelectionUI();
+    });
+  });
+  [...$('histBody').querySelectorAll('a[data-show]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      showFromHistory(a.dataset.show);
+    });
+  });
+  updateSelectionUI();
+}
+
+/* Подсветка строк и состояние кнопок по текущему выделению.
+   Список при этом не пересобирается. */
+function updateSelectionUI() {
+  const boxes = [...$('histBody').querySelectorAll('input[data-id]')];
+  const n = selected.size;
+  for (const cb of boxes) {
+    const on = selected.has(cb.dataset.id);
+    cb.checked = on;
+    const tr = cb.closest('tr');
+    if (tr) tr.className = on ? 'ok' : '';
+  }
+  $('histMerge').disabled = n < 1;
+  $('histDelete').disabled = n < 1;
+  $('histMerge').textContent = n > 1 ? 'Объединить ' + n + ' и скачать'
+    : (n === 1 ? 'Скачать выбранный' : 'Объединить и скачать');
+  $('histAll').checked = boxes.length > 0 && n === boxes.length;
+  $('histAll').indeterminate = n > 0 && n < boxes.length;
+}
+
+$('histAll').addEventListener('change', function () {
+  const ids = [...$('histBody').querySelectorAll('input[data-id]')]
+    .map(function (cb) { return cb.dataset.id; });
+  selected = $('histAll').checked ? new Set(ids) : new Set();
+  updateSelectionUI();
+});
+
+/* Показать сохранённый прогон в основной таблице. */
+function showFromHistory(id) {
+  const it = H.get(id);
+  if (!it) return;
+  const rows = it.results.map(function (r) { return { address: r[0], lat: r[1], lon: r[2] }; });
+  result = {
+    center: { displayName: it.city },
+    total: null,
+    results: rows,
+    fromWide: rows.length,
+    fromGrid: 0,
+    sectors: 0,
+    requests: 0,
+    withAddress: rows.filter(function (r) { return r.address; }).length,
+    withoutAddress: rows.filter(function (r) { return !r.address; }).length,
+    truncated: false,
+    error: null,
+    fromHistory: true
+  };
+  $('query').value = it.query;
+  $('city').value = it.city;
+  render({ GRID: it.grid || 0, RADIUS: A.DEFAULTS.RADIUS, MAX_RESULTS: rows.length });
+  $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+$('histDelete').addEventListener('click', function () {
+  H.remove([...selected]);
+  selected.clear();
+  renderHistory();
+});
+
+$('histClear').addEventListener('click', function () {
+  H.clear();
+  selected.clear();
+  $('histNotes').innerHTML = '';
+  renderHistory();
+});
+
+$('histMerge').addEventListener('click', function () {
+  const items = H.list().filter(function (it) { return selected.has(it.id); });
+  if (!items.length) return;
+
+  // в файле удобнее от старых к новым
+  items.sort(function (a, b) { return a.at - b.at; });
+
+  const tables = items.map(function (it) {
+    return {
+      name: it.city + ' - ' + it.query,
+      header: HEADER.slice(),
+      data: it.results.map(function (r) { return [r[0], r[1], r[2]]; })
+    };
+  });
+
+  // дубли тут осмысленны: один объект мог попасть в два разных запроса
+  const merged = M.mergeTables(tables, {
+    matchBy: 'name',
+    dedupe: true,
+    addSource: items.length > 1,
+    emptyPlaceholder: true
+  });
+
+  const cities = [...new Set(items.map(function (it) { return it.city; }))];
+  const queries = [...new Set(items.map(function (it) { return it.query; }))];
+  let name;
+  if (items.length === 1) name = items[0].city + ' - ' + items[0].query;
+  else if (cities.length === 1) name = cities[0] + ' - объединено';
+  else if (queries.length === 1) name = queries[0] + ' - ' + cities.length + ' города';
+  else name = 'Адреса - объединено';
+  name = name.replace(/[\\/:*?"<>|]/g, '_') + '.xlsx';
+
+  L.download(L.writeXlsx(M.buildReport(merged, { sheetName: 'Все результаты' })), name);
+
+  $('histNotes').innerHTML = '<div class="note ok">Скачан <b>' + esc(name) + '</b>: ' +
+    merged.rows.length + ' ' + plural(merged.rows.length, 'строка', 'строки', 'строк') +
+    ' из ' + items.length + ' ' + plural(items.length, 'запроса', 'запросов', 'запросов') +
+    (merged.removed
+      ? '. Совпадающих объектов убрано: ' + merged.removed + '.'
+      : '.') + '</div>';
+});
+
+renderHistory();
 
 })();
 </script>

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Объединение таблиц</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+</style>
+<script>
+/*__INJECT:theme.js__*/
+</script>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">объединение таблиц</div>
+    </div>
+  </div>
+
+  <h1>Объединение таблиц</h1>
+  <p class="subtitle">
+    Складывает несколько .xlsx в один файл: шапка берётся из первого, дальше строки
+    идут подряд. Столбцы сопоставляются по названию, поэтому файл с другим порядком
+    колонок не поедет. Ничего доводить руками не нужно.
+  </p>
+
+  <div class="section-label">Файлы</div>
+  <div class="drop" id="drop">
+    <div class="icon">📚</div>
+    <div class="main" id="dropMain">Выберите файлы .xlsx или перетащите сюда</div>
+    <div class="sub" id="dropSub">можно выбрать сразу несколько · берётся первый лист каждого файла</div>
+  </div>
+  <input type="file" id="file" accept=".xlsx,.xlsm" multiple>
+
+  <div id="fileList" style="display:none;margin-top:12px"></div>
+
+  <div class="section-label">Как объединять</div>
+  <div class="grid2">
+    <div class="field">
+      <label>Сопоставление столбцов</label>
+      <select id="matchBy">
+        <option value="name">по названию столбца</option>
+        <option value="position">по порядку столбцов</option>
+      </select>
+      <div class="hint" id="matchHint"></div>
+    </div>
+    <div class="field">
+      <label>Имя итогового файла</label>
+      <input type="text" id="outName" spellcheck="false">
+      <div class="hint">Название листа внутри — «Объединено».</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:4px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--desc);cursor:pointer">
+      <input type="checkbox" id="dedupe" style="width:auto;accent-color:var(--accent);cursor:pointer">
+      убрать полные дубли строк
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--desc);cursor:pointer">
+      <input type="checkbox" id="addSource" style="width:auto;accent-color:var(--accent);cursor:pointer">
+      добавить столбец с именем файла-источника
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--desc);cursor:pointer">
+      <input type="checkbox" id="emptyPlaceholder" checked style="width:auto;accent-color:var(--accent);cursor:pointer">
+      пустое первое поле заменять словом «empty»
+    </label>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="go" disabled>Объединить</button>
+    <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+  </div>
+
+  <div class="progress" id="prog">
+    <div class="bar" id="bar"><i></i></div>
+    <div class="progress-text" id="progText"></div>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="results" id="results">
+    <div class="divider"></div>
+    <div class="section-label">Результат</div>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="dl">Скачать .xlsx</button>
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:merge-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, M = window.MergeCore;
+const $ = function (id) { return document.getElementById(id); };
+
+const PREVIEW_ROWS = 200;
+let files = [], tables = null, merged = null, activeTab = 'preview';
+
+$('outName').value = 'Объединено.xlsx';
+
+function updateMatchHint() {
+  $('matchHint').textContent = $('matchBy').value === 'name'
+    ? 'Столбец ищется по заголовку. Если в каком-то файле есть свои столбцы, они добавятся в конец.'
+    : 'Строки копируются как есть, по номерам столбцов. Нужно, если заголовки не совпадают по написанию.';
+}
+$('matchBy').addEventListener('change', updateMatchHint);
+updateMatchHint();
+
+/* ── выбор файлов ── */
+const drop = $('drop'), input = $('file');
+drop.addEventListener('click', function () { input.click(); });
+drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+drop.addEventListener('drop', function (e) {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles([].slice.call(e.dataTransfer.files));
+});
+input.addEventListener('change', function () {
+  if (input.files && input.files.length) addFiles([].slice.call(input.files));
+});
+
+function addFiles(picked) {
+  const excel = picked.filter(function (f) { return /\.xlsx?$|\.xlsm$/i.test(f.name); });
+  const skipped = picked.length - excel.length;
+  if (skipped) log('Пропущено файлов не-Excel: ' + skipped, 'warn');
+  if (!excel.length) { log('Нужны файлы .xlsx', 'err'); return; }
+
+  for (const f of excel) {
+    // временные файлы Excel — как исключал merge.py
+    if (f.name.startsWith('~$')) continue;
+    if (files.some(function (x) { return x.name === f.name && x.size === f.size; })) continue;
+    files.push(f);
+  }
+  files.sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
+  tables = null; merged = null;
+  renderFileList();
+}
+
+function renderFileList() {
+  if (!files.length) {
+    $('fileList').style.display = 'none';
+    drop.classList.remove('filled');
+    $('dropMain').textContent = 'Выберите файлы .xlsx или перетащите сюда';
+    $('dropSub').textContent = 'можно выбрать сразу несколько · берётся первый лист каждого файла';
+    $('go').disabled = true;
+    $('reset').style.display = 'none';
+    return;
+  }
+  drop.classList.add('filled');
+  $('dropMain').textContent = 'Файлов выбрано: ' + files.length;
+  const bytes = files.reduce(function (a, f) { return a + f.size; }, 0);
+  $('dropSub').textContent = (bytes / 1024).toFixed(0) + ' КБ · можно добавить ещё';
+  $('go').disabled = false;
+  $('reset').style.display = '';
+
+  $('fileList').style.display = '';
+  $('fileList').innerHTML =
+    '<div class="table-wrap" style="max-height:190px"><table><tbody>' +
+    files.map(function (f, i) {
+      return '<tr><td>' + esc(f.name) + '</td>' +
+        '<td class="num muted">' + (f.size / 1024).toFixed(0) + ' КБ</td>' +
+        '<td class="nowrap" style="width:1%"><a href="#" data-i="' + i + '">убрать</a></td></tr>';
+    }).join('') + '</tbody></table></div>';
+  [...$('fileList').querySelectorAll('a[data-i]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      files.splice(parseInt(a.dataset.i, 10), 1);
+      tables = null; merged = null;
+      $('results').classList.remove('on');
+      renderFileList();
+    });
+  });
+}
+
+/* ── лог и прогресс ── */
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text, frac) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+  if (frac !== undefined && frac !== null) {
+    $('bar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
+}
+
+/* ── объединение ── */
+$('go').addEventListener('click', async function () {
+  if (!files.length) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  progress(true, 'Читаю файлы…', 0);
+
+  try {
+    tables = await M.readTables(files, function (done, total, name) {
+      progress(true, 'Читаю: ' + (done + 1) + ' из ' + total + (name ? ' — ' + name : ''),
+               done / total);
+    });
+    const bad = tables.filter(function (t) { return t.error; });
+    log('Прочитано файлов: ' + (tables.length - bad.length) + ' из ' + tables.length,
+        bad.length ? 'warn' : 'ok');
+
+    merged = M.mergeTables(tables, {
+      matchBy: $('matchBy').value,
+      dedupe: $('dedupe').checked,
+      addSource: $('addSource').checked,
+      emptyPlaceholder: $('emptyPlaceholder').checked
+    });
+    for (const w of merged.warnings) log(w, 'warn');
+    log('Строк в результате: ' + merged.rows.length, 'ok');
+    if (merged.duplicateRows) {
+      log('Полных дублей среди строк: ' + merged.duplicateRows +
+          (merged.removed ? ' (убрано ' + merged.removed + ')' : ' (оставлены как есть)'),
+          merged.removed ? 'ok' : 'warn');
+    }
+    progress(false);
+    activeTab = 'preview';
+    render();
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('reset').addEventListener('click', function () {
+  files = []; tables = null; merged = null;
+  input.value = '';
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  renderFileList();
+});
+
+/* ── отрисовка ── */
+function render() {
+  const cols = merged.header.length + (merged.options.addSource ? 1 : 0);
+  $('tiles').innerHTML =
+    tile(merged.rows.length, 'строк в результате', 'good') +
+    tile(merged.perFile.length, 'файлов склеено', '') +
+    tile(cols, 'столбцов', '') +
+    (merged.duplicateRows
+      ? tile(merged.duplicateRows, merged.removed ? 'дублей убрано' : 'дублей найдено',
+             merged.removed ? '' : 'warn')
+      : '');
+
+  let notes = '';
+  if (!merged.rows.length) {
+    notes += '<div class="note err">Ни одной строки данных. Проверьте, что в файлах ' +
+      'есть шапка и хотя бы одна строка под ней.</div>';
+  }
+  if (merged.duplicateRows && !merged.removed) {
+    notes += '<div class="note warn">Нашлось <b>' + merged.duplicateRows +
+      '</b> полностью совпадающих строк. Так бывает, если в выборку попал прошлый ' +
+      'результат объединения. Включите «убрать полные дубли строк», если это лишнее.</div>';
+  }
+  if (merged.columnsAdded.length) {
+    notes += '<div class="note info">В шапку добавились столбцы, которых не было ' +
+      'в первом файле:<br>' + merged.columnsAdded.map(esc).join('<br>') + '</div>';
+  }
+  const bad = (tables || []).filter(function (t) { return t.error; });
+  if (bad.length) {
+    notes += '<div class="note err">Не прочитались: ' +
+      bad.map(function (t) { return esc(t.name) + ' (' + esc(t.error) + ')'; }).join('; ') +
+      '</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tabs').innerHTML =
+    tab('preview', 'Первые строки', Math.min(merged.rows.length, PREVIEW_ROWS)) +
+    tab('files', 'По файлам', merged.perFile.length);
+  [...$('tabs').children].forEach(function (b) {
+    b.addEventListener('click', function () { activeTab = b.dataset.k; render(); });
+  });
+
+  if (activeTab === 'files') {
+    $('thead').innerHTML = '<th>Файл</th><th>Строк</th><th>Столбцов</th>';
+    $('tbody').innerHTML = merged.perFile.map(function (f) {
+      return '<tr><td>' + esc(f.name) + '</td>' +
+        '<td class="num">' + f.rows + '</td>' +
+        '<td class="num muted">' + f.columns + '</td></tr>';
+    }).join('');
+  } else {
+    const header = merged.header.concat(merged.options.addSource ? ['Файл-источник'] : []);
+    $('thead').innerHTML = header.map(function (h) {
+      return '<th>' + esc(h || '—') + '</th>';
+    }).join('');
+    $('tbody').innerHTML = merged.rows.slice(0, PREVIEW_ROWS).map(function (r) {
+      const values = r.values.concat(merged.options.addSource ? [r.source] : []);
+      return '<tr>' + values.map(function (v) {
+        const s = v === null || v === undefined ? '' : String(v);
+        const num = typeof v === 'number';
+        return '<td class="' + (num ? 'num' : '') + (s === '' ? ' muted' : '') + '">' +
+          esc(s) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+  }
+
+  $('results').classList.add('on');
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+function tab(k, label, n) {
+  return '<button class="tab' + (activeTab === k ? ' on' : '') + '" data-k="' + k + '">' +
+    label + ' <span class="cnt">' + n + '</span></button>';
+}
+
+/* ── выгрузка ── */
+$('dl').addEventListener('click', function () {
+  if (!merged || !merged.rows.length) return;
+  let name = $('outName').value.trim() || 'Объединено.xlsx';
+  name = name.replace(/[\\/:*?"<>|]/g, '_');
+  if (!/\.xlsx$/i.test(name)) name += '.xlsx';
+  L.download(L.writeXlsx(M.buildReport(merged)), name);
+});
+
+})();
+</script>
+</body>
+</html>

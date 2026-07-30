@@ -71,10 +71,17 @@
       </div>
     </sc-if>
 
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:{{ cDim }};margin-bottom:14px">Открываются в панели</div>
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:{{ cDim }}">Открываются в панели</div>
+      <div style="flex:1;height:1px;background:{{ cLine }}"></div>
+      <div style="font-size:11px;color:{{ cDim }}">{{ orderHint }}</div>
+      <sc-if value="{{ hasCustomOrder }}" hint-placeholder-val="{{ false }}">
+        <button sc-camel-on-click="{{ resetOrder }}" style="background:transparent;border:none;color:{{ cMuted }};font-size:11px;cursor:pointer;padding:0;text-decoration:underline;font-family:inherit" style-hover="color:var(--om-accent)">сбросить порядок</button>
+      </sc-if>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:{{ cardGap }}">
       <sc-for list="{{ internalTools }}" as="tool" hint-placeholder-count="4">
-        <div style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
+        <div draggable="true" data-tool="{{ tool.id }}" data-group="internal" style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
             <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#0a0e1a;background:{{ tool.iconBg }}">{{ tool.letter }}</div>
             <button sc-camel-on-click="{{ tool.handleTogglePin }}" title="Закрепить" style="background:transparent;border:none;color:{{ tool.starColor }};font-size:16px;cursor:pointer;padding:4px;line-height:1">{{ tool.starChar }}</button>
@@ -98,7 +105,7 @@
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:{{ cardGap }}">
       <sc-for list="{{ externalTools }}" as="tool" hint-placeholder-count="2">
-        <div style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-ext-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
+        <div draggable="true" data-tool="{{ tool.id }}" data-group="external" style="background:{{ tool.cardBg }};border:1px {{ tool.borderStyle }} {{ tool.borderColor }};border-radius:16px;padding:{{ cardPadding }};display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s,transform .15s" style-hover="border-color:var(--om-ext-accent);transform:translateY(-2px)" sc-camel-on-click="{{ tool.handleOpen }}">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
             <div style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:{{ cExtIconText }};background:{{ tool.iconBg }};border:1px dashed {{ cExtAccent }}">{{ tool.letter }}</div>
             <button sc-camel-on-click="{{ tool.handleTogglePin }}" title="Закрепить" style="background:transparent;border:none;color:{{ tool.starColor }};font-size:16px;cursor:pointer;padding:4px;line-height:1">{{ tool.starChar }}</button>
@@ -150,6 +157,7 @@ const TOOLS = [
   { id:'techreq', name:'Сбор технических требований', desc:'Длительности роликов и ссылки на ТТ по адресной программе', type:'internal', get src(){ return window.__resources ? window.__resources.techreqTool : 'techreq.html'; }, letter:'Т' },
   { id:'creatives', name:'Сортировка креативов', desc:'Выделение нужных крео из общего архива по адресной программе', type:'internal', get src(){ return window.__resources ? window.__resources.creativesTool : 'creatives.html'; }, letter:'С' },
   { id:'addresses', name:'Подбор адресов', desc:'Подбор POI через 2ГИС по запросу и городу', type:'internal', get src(){ return window.__resources ? window.__resources.addressesTool : 'addresses.html'; }, letter:'А' },
+  { id:'merge', name:'Объединение таблиц', desc:'Несколько xlsx в один файл без ручной правки', type:'internal', get src(){ return window.__resources ? window.__resources.mergeTool : 'merge.html'; }, letter:'Σ' },
   { id:'monitoring', name:'Мониторинг кампаний', desc:'Статусы и показатели активных кампаний', type:'external', url:'https://leafy-salmiakki-19a465.netlify.app/', letter:'М' },
   { id:'planner', name:'Планировщик', desc:'Планирование размещений и медиапланов', type:'external', url:'https://omni360.adtech.systems/page103658706.html', letter:'П' }
 ];
@@ -183,9 +191,108 @@ const THEMES = {
 };
 
 const THEME_KEY = 'omni360.theme';
+const ORDER_KEY = 'omni360.toolOrder';
+
+function readOrder() {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    if (!raw) return null;
+    const ids = JSON.parse(raw);
+    return Array.isArray(ids) && ids.every(function (x) { return typeof x === 'string'; })
+      ? ids : null;
+  } catch (e) { return null; }   // приватный режим или мусор
+}
+
+function saveOrder(ids) {
+  try {
+    if (ids) localStorage.setItem(ORDER_KEY, JSON.stringify(ids));
+    else localStorage.removeItem(ORDER_KEY);
+  } catch (e) { /* не критично */ }
+}
+
+/* Сохранённый порядок + новые инструменты в конец. Так добавление инструмента
+   не ломает уже настроенную пользователем очередность. */
+function applyOrder(tools, ids) {
+  if (!ids) return tools.slice();
+  const byId = new Map(tools.map(function (t) { return [t.id, t]; }));
+  const out = [];
+  for (const id of ids) {
+    const t = byId.get(id);
+    if (t) { out.push(t); byId.delete(id); }
+  }
+  for (const t of tools) if (byId.has(t.id)) out.push(t);
+  return out;
+}
+
+/* Ссылка на компонент для делегированных обработчиков перетаскивания.
+   События ловим на document, потому что карточки пересоздаются при
+   каждой перерисовке — навешивать на них по отдельности бессмысленно. */
+let panelApi = null;
+
+(function initDragAndDrop() {
+  let dragId = null, dragGroup = null, dragEl = null;
+
+  function cardOf(node) {
+    return node && node.closest ? node.closest('[data-tool]') : null;
+  }
+  function clearMarks() {
+    for (const el of document.querySelectorAll('[data-tool]')) {
+      el.style.outline = '';
+      el.style.outlineOffset = '';
+      el.style.opacity = '';
+    }
+  }
+
+  document.addEventListener('dragstart', function (e) {
+    const el = cardOf(e.target);
+    if (!el) return;
+    dragId = el.getAttribute('data-tool');
+    dragGroup = el.getAttribute('data-group');
+    dragEl = el;
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
+    } catch (err) { /* некоторые браузеры капризничают */ }
+    el.style.opacity = '.4';
+  });
+
+  document.addEventListener('dragover', function (e) {
+    if (!dragId) return;
+    const el = cardOf(e.target);
+    if (!el || el.getAttribute('data-group') !== dragGroup) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* ok */ }
+    if (el !== dragEl) {
+      el.style.outline = '2px dashed var(--om-accent)';
+      el.style.outlineOffset = '3px';
+    }
+  });
+
+  document.addEventListener('dragleave', function (e) {
+    const el = cardOf(e.target);
+    if (el && el !== dragEl) { el.style.outline = ''; el.style.outlineOffset = ''; }
+  });
+
+  document.addEventListener('drop', function (e) {
+    if (!dragId) return;
+    const el = cardOf(e.target);
+    const from = dragId, group = dragGroup;
+    clearMarks();
+    dragId = dragGroup = dragEl = null;
+    if (!el || el.getAttribute('data-group') !== group) return;
+    e.preventDefault();
+    const to = el.getAttribute('data-tool');
+    if (to && to !== from && panelApi) panelApi.moveTool(from, to);
+  });
+
+  document.addEventListener('dragend', function () {
+    clearMarks();
+    dragId = dragGroup = dragEl = null;
+  });
+})();
 
 class Component extends DCLogic {
-  state = { pinned: {}, activeToolId: null, theme: readTheme() };
+  state = { pinned: {}, activeToolId: null, theme: readTheme(), order: readOrder() };
 
   toggleFavorite = (id) => {
     this.setState(s => ({ pinned: { ...s.pinned, [id]: !s.pinned[id] } }));
@@ -203,6 +310,25 @@ class Component extends DCLogic {
       }
       return { theme };
     });
+  };
+
+  /* Переставить инструмент на место другого. Оба всегда из одной секции —
+     это проверяет обработчик drop. */
+  moveTool = (fromId, toId) => {
+    this.setState(s => {
+      const ids = applyOrder(TOOLS, s.order).map(t => t.id);
+      const from = ids.indexOf(fromId);
+      const to = ids.indexOf(toId);
+      if (from < 0 || to < 0 || from === to) return {};
+      ids.splice(to, 0, ids.splice(from, 1)[0]);
+      saveOrder(ids);
+      return { order: ids };
+    });
+  };
+
+  resetOrder = () => {
+    saveOrder(null);
+    this.setState({ order: null });
   };
 
   openTool = (tool) => {
@@ -247,7 +373,10 @@ class Component extends DCLogic {
       };
     };
 
-    const allTools = TOOLS.map(decorate);
+    panelApi = this;   // делегированным обработчикам нужен доступ к setState
+
+    const ordered = applyOrder(TOOLS, this.state.order);
+    const allTools = ordered.map(decorate);
     const activeTool = this.state.activeToolId
       ? TOOLS.find(t => t.id === this.state.activeToolId)
       : null;
@@ -269,6 +398,10 @@ class Component extends DCLogic {
       activeToolNoteVisible: !!(activeTool && !activeTool.src),
       accentFrom,
       accentTo,
+      hasCustomOrder: !!this.state.order,
+      orderHint: 'карточки можно перетаскивать',
+      resetOrder: this.resetOrder,
+      moveTool: this.moveTool,
       themeIcon: theme === 'dark' ? '☀' : '☾',
       themeLabel: theme === 'dark' ? 'Светлая' : 'Тёмная',
       themeTitle: theme === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему',
