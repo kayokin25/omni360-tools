@@ -357,6 +357,20 @@ function calc() {
 }
 
 calc();
+
+/* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
+   Подставляем типовую сделку и считаем: дальше поля живые, их можно менять. */
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  document.getElementById('contractor').value = 500000;
+  document.getElementById('minComm').value = 10;
+  const hint = document.createElement('div');
+  hint.textContent = 'Демо: подставлены 500 000 ₽ и комиссия 10%. Поля живые — меняйте.';
+  hint.style.cssText = 'font-size:12.5px;color:var(--accent-2);border:1px solid var(--line);' +
+    'background:var(--panel);border-radius:10px;padding:10px 13px;margin-bottom:20px';
+  const sub = document.querySelector('.subtitle');
+  sub.parentNode.insertBefore(hint, sub.nextSibling);
+  calc();
+}
 </script>
 </body>
 </html>

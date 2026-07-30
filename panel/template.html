@@ -61,9 +61,11 @@
                 <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
                 <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
                 <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
-                <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+                <span style="flex:1"></span>
+                <button sc-camel-on-click="{{ tool.handleGuide }}" title="{{ tool.guideTitle }}" style="background:transparent;border:1px solid {{ tool.guideLine }};color:{{ tool.guideColor }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap" style-hover="border-color:var(--om-accent);color:var(--om-text)">{{ tool.guideLabel }}</button>
+                <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600;white-space:nowrap">{{ tool.openLabel }}</span>
               </div>
             </div>
           </sc-for>
@@ -90,9 +92,11 @@
             <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
             <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
             <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
-            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+            <span style="flex:1"></span>
+            <button sc-camel-on-click="{{ tool.handleGuide }}" title="{{ tool.guideTitle }}" style="background:transparent;border:1px solid {{ tool.guideLine }};color:{{ tool.guideColor }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap" style-hover="border-color:var(--om-accent);color:var(--om-text)">{{ tool.guideLabel }}</button>
+            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600;white-space:nowrap">{{ tool.openLabel }}</span>
           </div>
         </div>
       </sc-for>
@@ -114,9 +118,11 @@
             <div style="font-size:15px;font-weight:600;color:{{ cText }};margin-bottom:4px">{{ tool.name }}</div>
             <div style="font-size:12.5px;color:{{ cDesc }};line-height:1.4">{{ tool.desc }}</div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
             <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:{{ tool.chipText }};background:{{ tool.chipBg }};border:1px solid {{ tool.chipLine }};padding:3px 8px;border-radius:6px">{{ tool.typeLabel }}</span>
-            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600">{{ tool.openLabel }}</span>
+            <span style="flex:1"></span>
+            <button sc-camel-on-click="{{ tool.handleGuide }}" title="{{ tool.guideTitle }}" style="background:transparent;border:1px solid {{ tool.guideLine }};color:{{ tool.guideColor }};font-size:11px;font-weight:600;padding:3px 9px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap" style-hover="border-color:var(--om-ext-accent);color:var(--om-text)">{{ tool.guideLabel }}</button>
+            <span style="font-size:12px;color:{{ tool.linkColor }};font-weight:600;white-space:nowrap">{{ tool.openLabel }}</span>
           </div>
         </div>
       </sc-for>
@@ -131,7 +137,10 @@
     <div style="width:100%;max-width:1100px;height:85vh;background:{{ cCard }};border:1px solid {{ cLine }};border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:{{ cShadow }}" sc-camel-on-click="{{ stopProp }}">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:{{ cChipBg }};border-bottom:1px solid {{ cLine }}">
         <div style="font-size:14px;font-weight:600;color:{{ cText }}">{{ activeTool.name }}</div>
-        <button sc-camel-on-click="{{ closeModal }}" style="background:{{ cBtnBg }};border:1px solid {{ cBtnLine }};color:{{ cMuted }};width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1" style-hover="color:var(--om-text);border-color:var(--om-accent)">✕</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button sc-camel-on-click="{{ openGuideForActive }}" title="Как этим пользоваться" style="background:{{ cBtnBg }};border:1px solid {{ cBtnLine }};color:{{ cMuted }};height:28px;padding:0 11px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;line-height:1;font-family:inherit" style-hover="color:var(--om-text);border-color:var(--om-accent)">Гайд</button>
+          <button sc-camel-on-click="{{ closeModal }}" style="background:{{ cBtnBg }};border:1px solid {{ cBtnLine }};color:{{ cMuted }};width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1" style-hover="color:var(--om-text);border-color:var(--om-accent)">✕</button>
+        </div>
       </div>
       <sc-if value="{{ activeToolSrc }}" hint-placeholder-val="{{ true }}">
         <iframe src="{{ activeToolSrc }}" style="flex:1;border:none;background:{{ cBg }}"></iframe>
@@ -145,6 +154,18 @@
           </div>
         </div>
       </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ guideTool }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:{{ cOverlay }};backdrop-filter:blur(3px);z-index:1100;display:flex;align-items:center;justify-content:center;padding:28px;animation:om-fade .15s ease" sc-camel-on-click="{{ closeGuideBackdrop }}">
+    <div style="width:100%;max-width:840px;height:88vh;max-height:700px;background:{{ cCard }};border:1px solid {{ cLine }};border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:{{ cShadow }}" sc-camel-on-click="{{ stopProp }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:{{ cChipBg }};border-bottom:1px solid {{ cLine }}">
+        <div style="font-size:14px;font-weight:600;color:{{ cText }}">Гайд · {{ guideTool.name }}</div>
+        <button sc-camel-on-click="{{ closeGuide }}" style="background:{{ cBtnBg }};border:1px solid {{ cBtnLine }};color:{{ cMuted }};width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1" style-hover="color:var(--om-text);border-color:var(--om-accent)">✕</button>
+      </div>
+      <iframe src="{{ guideSrc }}" style="flex:1;border:none;background:{{ cBg }}"></iframe>
     </div>
   </div>
 </sc-if>
@@ -192,6 +213,22 @@ const THEMES = {
 
 const THEME_KEY = 'omni360.theme';
 const ORDER_KEY = 'omni360.toolOrder';
+const SEEN_KEY = 'omni360.guideSeen';
+
+/* Прочитанные гайды хранит панель, а не сам гайд: у панели один localStorage
+   на всё, а документ с blob:-адресом до него дотягивается не в любом браузере. */
+function readSeen() {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    if (!raw) return {};
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch (e) { return {}; }
+}
+
+function saveSeen(map) {
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(map)); } catch (e) { /* не критично */ }
+}
 
 function readOrder() {
   try {
@@ -291,8 +328,22 @@ let panelApi = null;
   });
 })();
 
+/* Гайд живёт в iframe и просит панель что-то сделать: открыть инструмент,
+   закрыться, отметиться прочитанным. Данных в сообщении нет — только действие
+   и id инструмента, который всё равно ищется в TOOLS, так что «чужой» id
+   ничего не откроет. */
+window.addEventListener('message', function (e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object' || !d.omniGuide || !panelApi) return;
+  const g = d.omniGuide;
+  if (g.action === 'seen' && typeof g.tool === 'string') panelApi.markGuideSeen(g.tool);
+  else if (g.action === 'close') panelApi.closeGuide();
+  else if (g.action === 'open' && typeof g.tool === 'string') panelApi.openFromGuide(g.tool, !!g.demo);
+});
+
 class Component extends DCLogic {
-  state = { pinned: {}, activeToolId: null, theme: readTheme(), order: readOrder() };
+  state = { pinned: {}, activeToolId: null, activeToolDemo: false, guideToolId: null,
+            theme: readTheme(), order: readOrder(), seenGuides: readSeen() };
 
   toggleFavorite = (id) => {
     this.setState(s => ({ pinned: { ...s.pinned, [id]: !s.pinned[id] } }));
@@ -333,13 +384,45 @@ class Component extends DCLogic {
 
   openTool = (tool) => {
     if (tool.type === 'internal') {
-      this.setState({ activeToolId: tool.id });
+      this.setState({ activeToolId: tool.id, activeToolDemo: false });
     } else {
       window.open(tool.url, '_blank', 'noopener');
     }
   };
 
-  closeModal = () => this.setState({ activeToolId: null });
+  openGuide = (tool) => this.setState({ guideToolId: tool.id });
+  closeGuide = () => this.setState({ guideToolId: null });
+  closeGuideBackdrop = () => this.closeGuide();
+
+  /* Гайд открытого инструмента — из шапки модалки. Инструмент не закрываем:
+     модалка гайда ложится сверху, и по ✕ пользователь вернётся к работе. */
+  openGuideForActive = () => {
+    if (this.state.activeToolId) this.setState({ guideToolId: this.state.activeToolId });
+  };
+
+  markGuideSeen = (id) => {
+    this.setState(s => {
+      if (s.seenGuides[id]) return {};
+      const seen = { ...s.seenGuides, [id]: 1 };
+      saveSeen(seen);
+      return { seenGuides: seen };
+    });
+  };
+
+  /* «Открыть инструмент» из гайда. demo — открыть сразу с демо-данными:
+     инструмент читает это из #demo=1 в своём адресе. */
+  openFromGuide = (id, demo) => {
+    const tool = TOOLS.find(t => t.id === id);
+    if (!tool) return;
+    if (tool.type === 'internal') {
+      this.setState({ guideToolId: null, activeToolId: tool.id, activeToolDemo: !!demo });
+    } else {
+      window.open(tool.url, '_blank', 'noopener');
+      this.setState({ guideToolId: null });
+    }
+  };
+
+  closeModal = () => this.setState({ activeToolId: null, activeToolDemo: false });
   closeModalBackdrop = () => this.closeModal();
   stopProp = (e) => e.stopPropagation();
 
@@ -349,6 +432,7 @@ class Component extends DCLogic {
     const accentFrom = this.props.accentFrom ?? '#00c6ff';
     const accentTo = this.props.accentTo ?? '#7bed9f';
     const pinned = this.state.pinned;
+    const seenGuides = this.state.seenGuides;
     const theme = this.state.theme === 'light' ? 'light' : 'dark';
     const c = THEMES[theme];
 
@@ -368,7 +452,15 @@ class Component extends DCLogic {
         chipLine: ext ? c.cExtChipLine : c.cLine,
         chipText: ext ? c.cExtChipText : c.cMuted,
         linkColor: ext ? c.cExtLink : accentFrom,
+        guideSeen: !!seenGuides[t.id],
+        // Точка у непрочитанного гайда: без неё кнопка сливается с интерфейсом
+        // и её просто не замечают.
+        guideLabel: seenGuides[t.id] ? 'Гайд' : 'Гайд •',
+        guideColor: seenGuides[t.id] ? c.cMuted : (ext ? c.cExtLink : accentFrom),
+        guideLine: seenGuides[t.id] ? c.cLine : (ext ? c.cExtChipLine : c.cLine),
+        guideTitle: seenGuides[t.id] ? 'Как это работает' : 'Гайд ещё не открывали',
         handleOpen: () => this.openTool(t),
+        handleGuide: (e) => { e.stopPropagation(); this.openGuide(t); },
         handleTogglePin: (e) => { e.stopPropagation(); this.toggleFavorite(t.id); }
       };
     };
@@ -384,7 +476,17 @@ class Component extends DCLogic {
     // Тему передаём инструменту через #hash: он применит её сразу, без мигания
     let activeToolSrc = '';
     if (activeTool && activeTool.src) {
-      activeToolSrc = activeTool.src + '#theme=' + theme;
+      activeToolSrc = activeTool.src + '#theme=' + theme +
+        (this.state.activeToolDemo ? '&demo=1' : '');
+    }
+
+    const guideTool = this.state.guideToolId
+      ? TOOLS.find(t => t.id === this.state.guideToolId)
+      : null;
+    let guideSrc = '';
+    if (guideTool) {
+      const base = window.__resources ? window.__resources.guideTool : 'guide.html';
+      guideSrc = base + '#tool=' + guideTool.id + '&theme=' + theme;
     }
 
     return {
@@ -395,6 +497,8 @@ class Component extends DCLogic {
       hasPinned: allTools.some(t => t.isPinned),
       activeTool,
       activeToolSrc,
+      guideTool,
+      guideSrc,
       activeToolNoteVisible: !!(activeTool && !activeTool.src),
       accentFrom,
       accentTo,
@@ -414,6 +518,10 @@ class Component extends DCLogic {
       openTool: this.openTool,
       closeModal: this.closeModal,
       closeModalBackdrop: this.closeModalBackdrop,
+      openGuide: this.openGuide,
+      openGuideForActive: this.openGuideForActive,
+      closeGuide: this.closeGuide,
+      closeGuideBackdrop: this.closeGuideBackdrop,
       stopProp: this.stopProp
     };
   }

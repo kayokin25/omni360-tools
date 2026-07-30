@@ -36,6 +36,8 @@
   --miss-bg: #1f1417; --miss-bg-hover: #2a1a1e;
   --drop-fill: linear-gradient(135deg, #0d2440, #0d2e20);
   --log-ok: #7bed9f; --log-warn: #fbbf24; --log-err: #f87171;
+  /* Внешние сервисы в панели помечены сиреневым — гайды по ним держат тот же цвет. */
+  --ext-icon-a: #312e5f; --ext-icon-b: #1f2544; --ext-text: #ddd6fe; --ext-line: #a78bfa;
 }
 
 :root[data-theme="light"] {
@@ -67,6 +69,7 @@
   --miss-bg: #fef4f4; --miss-bg-hover: #fde8e8;
   --drop-fill: linear-gradient(135deg, #eff6ff, #ecfdf5);
   --log-ok: #047857; --log-warn: #b45309; --log-err: #b91c1c;
+  --ext-icon-a: #ede9fe; --ext-icon-b: #e0e7ff; --ext-text: #4c1d95; --ext-line: #7c3aed;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -3131,6 +3134,47 @@ $('copy').addEventListener('click', async function () {
   }
   setTimeout(function () { $('copy').textContent = 'Копировать таблицу'; }, 1800);
 });
+
+
+/* Плашка про демо-данные. Через log() нельзя: обработчик запуска очищает лог,
+   и пояснение исчезало ровно в тот момент, когда становилось нужным. */
+function demoNote(html) {
+  const el = document.createElement('div');
+  el.className = 'note info';
+  el.innerHTML = html;
+  const sub = document.querySelector('.subtitle');
+  sub.parentNode.insertBefore(el, sub.nextSibling);
+}
+
+/* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
+   Демо-АП собрана из настоящих связок справочника, поэтому длительности
+   получаются такие же, как на рабочем файле. Две строки тут намеренные:
+   повтор «3 Арт» показывает склейку дублей, а «РА Ромашка» — как выглядит
+   связка, которой в справочнике нет. */
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  // Разрешения взяты те, под которые на Диске действительно лежат ТТ, —
+  // иначе в демо почти вся колонка со ссылками была бы пустой и создавала
+  // ложное впечатление, что ссылки не находятся вообще никогда.
+  const rows = [
+    ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон', 'GID'],
+    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100001'],
+    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100002'],
+    ['Russ Outdoor', 'BILLBOARD', '1080x1920', '9:16', 'GID-100003'],
+    ['MAER (Outdoor)', 'MEDIAFACADE', '720x360', '2:1', 'GID-100004'],
+    ['MAER (Outdoor)', 'SUPERSITE', '1152x864', '4:3', 'GID-100005'],
+    ['LBL', 'BILLBOARD', '1920x1080', '16:9', 'GID-100006'],
+    ['2 Этаж', 'SUPERSITE', '960x1344', '5:7', 'GID-100007'],
+    ['РИМ', 'BILLBOARD', '896x320', '14:5', 'GID-100008'],
+    ['РА Ромашка', 'BILLBOARD', '1920x1080', '16:9', 'GID-100009']
+  ];
+  const blob = L.writeXlsx([{ name: 'Адресная программа', cols: [26, 18, 14, 18, 14], rows: rows }]);
+  setFile(new File([blob], 'Демо — адресная программа.xlsx', { type: blob.type }));
+  demoNote('<b>Демо-данные.</b> Адресная программа на ' + (rows.length - 1) +
+    ' строк собрана здесь же из настоящих связок справочника. Строка «РА Ромашка» — ' +
+    'намеренная: такой связки в справочнике нет, посмотрите, как это выглядит в результате. ' +
+    'Свой файл можно положить сверху.');
+  $('go').click();
+}
 
 })();
 </script>

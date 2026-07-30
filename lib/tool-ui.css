@@ -29,6 +29,8 @@
   --miss-bg: #1f1417; --miss-bg-hover: #2a1a1e;
   --drop-fill: linear-gradient(135deg, #0d2440, #0d2e20);
   --log-ok: #7bed9f; --log-warn: #fbbf24; --log-err: #f87171;
+  /* Внешние сервисы в панели помечены сиреневым — гайды по ним держат тот же цвет. */
+  --ext-icon-a: #312e5f; --ext-icon-b: #1f2544; --ext-text: #ddd6fe; --ext-line: #a78bfa;
 }
 
 :root[data-theme="light"] {
@@ -60,6 +62,7 @@
   --miss-bg: #fef4f4; --miss-bg-hover: #fde8e8;
   --drop-fill: linear-gradient(135deg, #eff6ff, #ecfdf5);
   --log-ok: #047857; --log-warn: #b45309; --log-err: #b91c1c;
+  --ext-icon-a: #ede9fe; --ext-icon-b: #e0e7ff; --ext-text: #4c1d95; --ext-line: #7c3aed;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

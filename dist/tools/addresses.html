@@ -36,6 +36,8 @@
   --miss-bg: #1f1417; --miss-bg-hover: #2a1a1e;
   --drop-fill: linear-gradient(135deg, #0d2440, #0d2e20);
   --log-ok: #7bed9f; --log-warn: #fbbf24; --log-err: #f87171;
+  /* Внешние сервисы в панели помечены сиреневым — гайды по ним держат тот же цвет. */
+  --ext-icon-a: #312e5f; --ext-icon-b: #1f2544; --ext-text: #ddd6fe; --ext-line: #a78bfa;
 }
 
 :root[data-theme="light"] {
@@ -67,6 +69,7 @@
   --miss-bg: #fef4f4; --miss-bg-hover: #fde8e8;
   --drop-fill: linear-gradient(135deg, #eff6ff, #ecfdf5);
   --log-ok: #047857; --log-warn: #b45309; --log-err: #b91c1c;
+  --ext-icon-a: #ede9fe; --ext-icon-b: #e0e7ff; --ext-text: #4c1d95; --ext-line: #7c3aed;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2359,6 +2362,30 @@ $('histMerge').addEventListener('click', function () {
 });
 
 renderHistory();
+
+
+/* Плашка про демо-данные. Через log() нельзя: обработчик запуска очищает лог,
+   и пояснение исчезало ровно в тот момент, когда становилось нужным. */
+function demoNote(html) {
+  const el = document.createElement('div');
+  el.className = 'note info';
+  el.innerHTML = html;
+  const sub = document.querySelector('.subtitle');
+  sub.parentNode.insertBefore(el, sub.nextSibling);
+}
+
+/* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
+   Запрос настоящий: инструмент реально сходит в справочник 2ГИС. Лимит
+   небольшой, чтобы демо отвечало за секунду. */
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  $('query').value = 'Пятёрочка';
+  $('city').value = 'Казань';
+  $('maxResults').value = 60;
+  $('grid').value = '0';
+  demoNote('<b>Демо-запрос.</b> Ищем «Пятёрочка» в Казани, до 60 объектов. ' +
+    'Запрос настоящий — это тот же справочник 2ГИС, что и в работе. Меняйте поля и жмите «Искать».');
+  $('go').click();
+}
 
 })();
 </script>

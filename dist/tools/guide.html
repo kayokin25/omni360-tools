@@ -1,0 +1,4420 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Гайд</title>
+<style>
+/* Общий стиль инструментов панели Omni360 (один язык с калькулятором OmniBuy).
+   Все цвета — через переменные: тему задаёт панель, применяет lib/theme.js. */
+:root {
+  --bg: #0a0e1a;
+  --card: #111827;
+  --line: #1e293b;
+  --line-soft: #161f33;
+  --text: #f1f5f9;
+  --desc: #94a3b8;
+  --muted: #64748b;
+  --dim: #475569;
+  --panel: #0f172a;
+  --input-bg: #1e293b;
+  --input-line: #334155;
+  --code-bg: #0b1220;
+  --accent: #00c6ff;
+  --accent-2: #7bed9f;
+  --accent-ink: #05121f;
+  --link: #4f8cff;
+  --shadow: 0 24px 60px rgba(0, 0, 0, .4);
+  --row-hover: #151d30;
+  --tile-bg: #0f172a;
+  --scroll-track: #0b1220;
+  --scroll-thumb: #283449;
+  --ok-bg: #0d2018; --ok-line: #1e4d40; --ok-text: #7bed9f;
+  --warn-bg: #241a08; --warn-line: #57400f; --warn-text: #fbbf24;
+  --err-bg: #2a1215; --err-line: #5c2b2e; --err-text: #ff8a80;
+  --info-bg: #0d1b2e; --info-line: #1e3a5f; --info-text: #93c5fd;
+  --miss-bg: #1f1417; --miss-bg-hover: #2a1a1e;
+  --drop-fill: linear-gradient(135deg, #0d2440, #0d2e20);
+  --log-ok: #7bed9f; --log-warn: #fbbf24; --log-err: #f87171;
+  /* Внешние сервисы в панели помечены сиреневым — гайды по ним держат тот же цвет. */
+  --ext-icon-a: #312e5f; --ext-icon-b: #1f2544; --ext-text: #ddd6fe; --ext-line: #a78bfa;
+}
+
+:root[data-theme="light"] {
+  --bg: #eef2f7;
+  --card: #ffffff;
+  --line: #dbe3ec;
+  --line-soft: #edf1f6;
+  --text: #0f172a;
+  --desc: #475569;
+  --muted: #64748b;
+  --dim: #94a3b8;
+  --panel: #f6f8fb;
+  --input-bg: #ffffff;
+  --input-line: #cbd5e1;
+  --code-bg: #f6f8fb;
+  --accent: #0284c7;
+  --accent-2: #15803d;
+  --accent-ink: #ffffff;
+  --link: #0369a1;
+  --shadow: 0 20px 50px rgba(15, 23, 42, .12);
+  --row-hover: #f6f8fb;
+  --tile-bg: #f6f8fb;
+  --scroll-track: #eef2f7;
+  --scroll-thumb: #c7d2e0;
+  --ok-bg: #ecfdf5; --ok-line: #a7f3d0; --ok-text: #047857;
+  --warn-bg: #fffbeb; --warn-line: #fde68a; --warn-text: #92400e;
+  --err-bg: #fef2f2; --err-line: #fecaca; --err-text: #b91c1c;
+  --info-bg: #eff6ff; --info-line: #bfdbfe; --info-text: #1d4ed8;
+  --miss-bg: #fef4f4; --miss-bg-hover: #fde8e8;
+  --drop-fill: linear-gradient(135deg, #eff6ff, #ecfdf5);
+  --log-ok: #047857; --log-warn: #b45309; --log-err: #b91c1c;
+  --ext-icon-a: #ede9fe; --ext-icon-b: #e0e7ff; --ext-text: #4c1d95; --ext-line: #7c3aed;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 24px;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition: background .2s, color .2s;
+}
+
+.wrap { width: 100%; max-width: 980px; margin: 0 auto; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+/* ── шапка ── */
+.logo { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); flex: none; }
+/* background-image, а НЕ сокращённое background: сокращённая запись сбрасывает
+   background-clip, и при переприсваивании цвета обрезка по тексту слетает —
+   вместо букв виден градиентный прямоугольник. */
+.logo-text { font-size: 18px; font-weight: 700; background-image: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.subtitle { font-size: 13px; color: var(--muted); margin-bottom: 26px; line-height: 1.5; }
+
+.section-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--dim); margin: 24px 0 12px;
+}
+.section-label:first-of-type { margin-top: 0; }
+
+.divider { height: 1px; background: var(--line); margin: 24px 0; }
+
+/* ── поля ── */
+.field { margin-bottom: 14px; }
+label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
+.hint { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
+
+input[type=text], input[type=number], select {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
+  border-radius: 10px; color: var(--text); font-size: 14px;
+  padding: 10px 13px; outline: none; transition: border-color .15s;
+  font-family: inherit;
+}
+input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--accent); }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
+input::placeholder { color: var(--dim); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+/* ── зона выбора файла ── */
+.drop {
+  border: 1.5px dashed var(--input-line); border-radius: 14px; padding: 22px 20px;
+  text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  background: var(--panel);
+}
+.drop:hover, .drop.over { border-color: var(--accent); }
+.drop .icon { font-size: 22px; margin-bottom: 8px; opacity: .85; }
+.drop .main { font-size: 13.5px; color: var(--text); font-weight: 500; }
+.drop .sub { font-size: 11.5px; color: var(--dim); margin-top: 5px; }
+.drop.filled { border-style: solid; border-color: var(--ok-line); background: var(--drop-fill); }
+.drop.filled .main { color: var(--ok-text); }
+input[type=file] { display: none; }
+
+/* ── кнопки ── */
+.btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
+  color: var(--accent-ink); font-size: 14px; font-weight: 700; padding: 12px 22px;
+  border-radius: 11px; cursor: pointer; transition: transform .12s, filter .15s;
+  font-family: inherit;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.ghost {
+  background: var(--input-bg); border: 1px solid var(--input-line); color: var(--text); font-weight: 600;
+}
+.btn.ghost:hover:not(:disabled) { border-color: var(--accent); filter: none; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+
+/* ── прогресс ── */
+.progress { margin-top: 18px; display: none; }
+.progress.on { display: block; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.bar > i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: 99px; transition: width .2s;
+}
+.bar.indet > i { width: 35%; animation: slide 1.1s ease-in-out infinite; }
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.progress-text { font-size: 12px; color: var(--desc); margin-top: 8px; min-height: 16px; }
+
+.log {
+  margin-top: 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--desc); max-height: 170px; overflow: auto; white-space: pre-wrap;
+  word-break: break-word; display: none;
+}
+.log.on { display: block; }
+.log b { color: var(--log-ok); font-weight: 600; }
+.log i { color: var(--log-warn); font-style: normal; }
+.log s { color: var(--log-err); text-decoration: none; }
+
+/* ── плитки статистики ── */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.tile { background: var(--tile-bg); border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px; }
+.tile .v { font-size: 21px; font-weight: 800; color: var(--text); line-height: 1.15; }
+.tile .k { font-size: 10.5px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.tile.good .v { background-image: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.tile.warn .v { color: var(--warn-text); }
+.tile.bad .v { color: var(--err-text); }
+
+/* ── таблица ── */
+.table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: auto; max-height: 440px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead th {
+  position: sticky; top: 0; z-index: 1; background: var(--panel); color: var(--muted);
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); color: var(--desc); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--row-hover); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
+td.muted { color: var(--muted); }
+tbody tr.miss td { background: var(--miss-bg); }
+tbody tr.miss:hover td { background: var(--miss-bg-hover); }
+tbody tr.miss td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
+tbody tr.ok td:first-child { box-shadow: inset 3px 0 0 #15803d; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── сообщения ── */
+.note {
+  border-radius: 12px; padding: 13px 16px; font-size: 12.5px; line-height: 1.55;
+  margin-bottom: 16px; border: 1px solid;
+}
+.note.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info-text); }
+.note.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn-text); }
+.note.err { background: var(--err-bg); border-color: var(--err-line); color: var(--err-text); }
+.note.ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-text); }
+.note b { font-weight: 700; }
+.note code { font: 11.5px ui-monospace, Menlo, Consolas, monospace; background: rgba(127,127,127,.14); padding: 1px 5px; border-radius: 4px; }
+
+.results { display: none; }
+.results.on { display: block; }
+
+/* ── табы ── */
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.tab {
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 9px;
+  cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.tab:hover { color: var(--text); border-color: var(--input-line); }
+.tab.on { background: var(--input-bg); color: var(--text); border-color: var(--input-line); }
+.tab .cnt { color: var(--dim); font-weight: 500; }
+.tab.on .cnt { color: var(--desc); }
+
+.footer { margin-top: 22px; text-align: center; font-size: 11px; color: var(--dim); }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: var(--scroll-track); }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 9px; }
+::-webkit-scrollbar-thumb:hover { filter: brightness(1.2); }
+
+</style>
+<style>
+/* Стили гайдов. Поверх lib/tool-ui.css — переменные и базовые элементы
+   (кнопки, поля, таблицы, .note) берём оттуда, здесь только своё.
+
+   Гайд живёт в iframe внутри модалки панели, поэтому прокрутка должна быть
+   внутри карточки, а не у страницы: иначе модалка «прыгает» на переходах
+   между слайдами. */
+
+body.guide {
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+
+.g-card {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 22px 26px 18px;
+  gap: 16px;
+}
+@media (max-width: 560px) { .g-card { padding: 16px 16px 14px; } }
+
+/* ── шапка ── */
+.g-head { display: flex; align-items: center; gap: 12px; flex: none; }
+.g-icon {
+  width: 38px; height: 38px; border-radius: 11px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+/* Внешние сервисы и в панели выделены сиреневым — здесь то же самое,
+   чтобы гайд не выглядел «чужим» относительно карточки. */
+.g-icon.ext {
+  background: linear-gradient(135deg, var(--ext-icon-a), var(--ext-icon-b));
+  color: var(--ext-text); border: 1px dashed var(--ext-line);
+}
+.g-title { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.g-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.g-count { margin-left: auto; font-size: 11.5px; color: var(--dim); white-space: nowrap; }
+
+/* ── полоса шагов ── */
+.g-prog { display: flex; gap: 4px; flex: none; }
+.g-prog button {
+  flex: 1; height: 4px; border: none; padding: 0; border-radius: 99px;
+  background: var(--line); cursor: pointer; transition: background .15s;
+}
+.g-prog button:hover { background: var(--input-line); }
+.g-prog button.seen { background: var(--input-line); }
+.g-prog button.on { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+/* ── слайд ── */
+.g-body { flex: 1; overflow: auto; padding-right: 4px; }
+.g-slide { animation: g-in .18s ease; }
+@keyframes g-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+.g-kick {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--dim); margin-bottom: 8px;
+}
+.g-h2 { font-size: 19px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 8px; }
+.g-lead { font-size: 13.5px; color: var(--desc); line-height: 1.6; }
+.g-lead + .g-lead { margin-top: 9px; }
+.g-lead b { color: var(--text); font-weight: 600; }
+.g-lead code, .g-li code, .g-step-d code {
+  font: 11.5px ui-monospace, Menlo, Consolas, monospace;
+  background: rgba(127, 127, 127, .14); padding: 1px 5px; border-radius: 4px;
+}
+
+/* ── «вручную / здесь» ── */
+.g-cmp { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; margin: 16px 0; }
+@media (max-width: 560px) { .g-cmp { grid-template-columns: 1fr; } .g-cmp .g-arrow { display: none; } }
+.g-cmp-box { background: var(--tile-bg); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; }
+.g-cmp-box.now { border-color: var(--ok-line); background: var(--ok-bg); }
+.g-cmp-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.g-cmp-box.now .g-cmp-k { color: var(--ok-text); opacity: .85; }
+.g-cmp-v { font-size: 19px; font-weight: 800; color: var(--text); margin-top: 5px; line-height: 1.15; }
+.g-cmp-box.now .g-cmp-v { color: var(--ok-text); }
+.g-cmp-d { font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
+.g-arrow { display: flex; align-items: center; color: var(--dim); font-size: 17px; }
+
+.g-note-est { font-size: 11px; color: var(--dim); margin-top: -6px; margin-bottom: 14px; line-height: 1.45; }
+
+/* ── списки ── */
+.g-list { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.g-li { display: flex; gap: 9px; font-size: 13px; color: var(--desc); line-height: 1.55; }
+.g-li .m { flex: none; color: var(--accent-2); font-weight: 700; }
+.g-li b { color: var(--text); font-weight: 600; }
+
+/* ── шаги ── */
+.g-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.g-step {
+  display: flex; gap: 12px; background: var(--tile-bg); border: 1px solid var(--line);
+  border-radius: 13px; padding: 13px 15px;
+}
+.g-step-n {
+  width: 22px; height: 22px; border-radius: 7px; flex: none; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700;
+  background: var(--input-bg); border: 1px solid var(--input-line); color: var(--desc);
+}
+.g-step-t { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.g-step-d { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-top: 3px; }
+
+/* ── грабли ── */
+.g-pits { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.g-pit {
+  background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: 13px; padding: 12px 15px;
+}
+.g-pit-t { font-size: 13px; font-weight: 600; color: var(--warn-text); }
+.g-pit-d { font-size: 12.5px; color: var(--desc); line-height: 1.55; margin-top: 4px; }
+
+/* ── мини-демо ── */
+.g-demo {
+  border: 1px solid var(--input-line); border-radius: 14px; overflow: hidden;
+  margin-top: 16px; background: var(--panel);
+}
+.g-demo-head {
+  padding: 9px 14px; background: var(--input-bg); border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted); display: flex; align-items: center; gap: 8px;
+}
+.g-demo-head .live {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(127, 127, 127, .12);
+}
+.g-demo-body { padding: 14px; }
+.g-demo-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.g-demo-row > .field { flex: 1; min-width: 150px; margin-bottom: 0; }
+.g-demo-out { margin-top: 13px; }
+.g-out-big {
+  font-size: 26px; font-weight: 800; line-height: 1.1;
+  background-image: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.g-out-k { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+.g-out-none { font-size: 13px; color: var(--err-text); font-weight: 600; }
+.g-demo-hint { font-size: 11.5px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
+
+/* мини-таблица внутри демо */
+.g-mini { width: 100%; border-collapse: collapse; font-size: 12px; }
+.g-mini th {
+  text-align: left; padding: 6px 9px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--muted); border-bottom: 1px solid var(--line); font-weight: 600;
+}
+.g-mini td { padding: 6px 9px; border-bottom: 1px solid var(--line-soft); color: var(--desc); }
+.g-mini tr:last-child td { border-bottom: none; }
+.g-mini tr.hit td { background: var(--ok-bg); color: var(--ok-text); }
+.g-mini tr.out td { opacity: .45; }
+.g-mini-wrap { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; background: var(--card); }
+.g-mini-cap { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.g-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .g-two { grid-template-columns: 1fr; } }
+
+/* чипы (шаги визарда планировщика, варианты) */
+.g-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.g-chip {
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  font-size: 12px; font-weight: 600; padding: 7px 13px; border-radius: 9px;
+  cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.g-chip:hover { color: var(--text); border-color: var(--input-line); }
+.g-chip.on { background: var(--input-bg); color: var(--text); border-color: var(--accent); }
+
+/* ── навигация ── */
+.g-nav { display: flex; gap: 9px; align-items: center; flex: none; flex-wrap: wrap; }
+.g-nav .sp { flex: 1; }
+.g-btn-sm {
+  background: var(--input-bg); border: 1px solid var(--input-line); color: var(--text);
+  font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 10px;
+  cursor: pointer; font-family: inherit; transition: border-color .15s;
+}
+.g-btn-sm:hover:not(:disabled) { border-color: var(--accent); }
+.g-btn-pri {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none;
+  color: var(--accent-ink); font-size: 13px; font-weight: 700; padding: 10px 18px;
+  border-radius: 10px; cursor: pointer; font-family: inherit; transition: filter .15s, transform .12s;
+}
+.g-btn-pri:hover:not(:disabled) { filter: brightness(1.08); }
+.g-btn-pri:active:not(:disabled) { transform: translateY(1px); }
+.g-btn-sm:disabled, .g-btn-pri:disabled { opacity: .45; cursor: not-allowed; }
+.g-keyhint { font-size: 10.5px; color: var(--dim); }
+
+</style>
+<script>
+/* Тема инструмента.
+
+   Инструмент открывается либо внутри панели (в iframe), либо отдельной
+   страницей. Поэтому тему берём по порядку:
+     1. #theme=... в адресе — так панель задаёт тему сразу, без мигания;
+     2. сохранённая в localStorage — для отдельной страницы;
+     3. системная настройка.
+
+   Панель при переключении присылает postMessage — применяем на лету, чтобы
+   открытый инструмент не перезагружался и не терял результаты. */
+(function (root) {
+'use strict';
+
+const KEY = 'omni360.theme';
+
+function fromHash() {
+  const m = /(?:^|[#&])theme=(light|dark)\b/.exec(root.location.hash || '');
+  return m ? m[1] : null;
+}
+
+function fromStorage() {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch (e) { return null; }   // приватный режим
+}
+
+function fromSystem() {
+  try {
+    return root.matchMedia && root.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light' : 'dark';
+  } catch (e) { return 'dark'; }
+}
+
+/* current объявляем ДО apply(): apply() его присваивает, а обращение к let-
+   переменной до инициализации — ReferenceError. Раньше здесь было
+   `let current = apply(...)`, и скрипт падал сразу после setAttribute: тема
+   применялась, но слушатель postMessage уже не регистрировался. */
+let current = 'dark';
+
+function apply(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  current = t;
+  return t;
+}
+
+apply(fromHash() || fromStorage() || fromSystem());
+
+/* Панель сообщает о переключении. Сообщения приходят от родительского
+   документа панели; проверяем только форму — данных тут нет, лишь имя темы. */
+root.addEventListener('message', function (e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.omniTheme !== 'light' && d.omniTheme !== 'dark') return;
+  apply(d.omniTheme);
+});
+
+root.OmniTheme = {
+  get: function () { return current; },
+  apply: apply,
+  /* Для отдельной страницы: запомнить выбор. Внутри панели выбор хранит панель. */
+  save: function (theme) {
+    const t = apply(theme);
+    try { localStorage.setItem(KEY, t); } catch (e) { /* приватный режим */ }
+    return t;
+  },
+  isEmbedded: function () {
+    try { return root.parent !== root; } catch (e) { return true; }
+  }
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+</head>
+<body class="guide">
+
+<div class="g-card">
+
+  <div class="g-head">
+    <div class="g-icon" id="gIcon">?</div>
+    <div>
+      <div class="g-title" id="gTitle">Гайд</div>
+      <div class="g-sub" id="gSub">как это работает</div>
+    </div>
+    <div class="g-count" id="gCount"></div>
+  </div>
+
+  <div class="g-prog" id="gProg"></div>
+
+  <div class="g-body" id="gBody"></div>
+
+  <div class="g-nav" id="gNav"></div>
+
+</div>
+
+<script>
+/* ============================================================================
+   Omni360 — общая мини-библиотека для инструментов панели.
+   Без внешних зависимостей. Работает в браузере и в node (для тестов).
+
+   Содержит:
+     • ZIP-читалку с произвольным доступом (EOCD / ZIP64 / deflate-raw)
+     • ZIP-писалку (STORED + CRC32, UTF-8 имена)
+     • XLSX-читалку (workbook/rels/sharedStrings/sheet XML)
+     • XLSX-писалку (стили, ширины, закрепление шапки, гиперссылки)
+     • разбор пиксельных размеров MP4/MOV из байтов (boxes moov→…→stsd)
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+/* ─────────────────────────── байтовые утилиты ─────────────────────────── */
+
+function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+function u64(b, o) { // little-endian 64-бит как Number (хватает до 2^53)
+  return u32(b, o) + u32(b, o + 4) * 4294967296;
+}
+
+// поиск последовательности байт в буфере (с конца или с начала)
+function findSeq(buf, seq, from, backwards) {
+  const n = buf.length, m = seq.length;
+  if (backwards) {
+    for (let i = (from === undefined ? n - m : from); i >= 0; i--) {
+      let ok = true;
+      for (let j = 0; j < m; j++) if (buf[i + j] !== seq[j]) { ok = false; break; }
+      if (ok) return i;
+    }
+  } else {
+    for (let i = (from || 0); i <= n - m; i++) {
+      let ok = true;
+      for (let j = 0; j < m; j++) if (buf[i + j] !== seq[j]) { ok = false; break; }
+      if (ok) return i;
+    }
+  }
+  return -1;
+}
+
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+const utf8Loose = new TextDecoder('utf-8');
+function decodeName(bytes, utf8Flag) {
+  if (utf8Flag) return utf8Loose.decode(bytes);
+  // Без флага UTF-8 имя может быть в CP866/CP437 (архив из Windows).
+  try { return utf8Decoder.decode(bytes); } catch (e) { /* не UTF-8 */ }
+  try { return new TextDecoder('ibm866').decode(bytes); } catch (e) { return utf8Loose.decode(bytes); }
+}
+
+function encodeUtf8(s) { return new TextEncoder().encode(s); }
+
+/* ─────────────────────────── источники байтов ─────────────────────────── */
+/* source = { size, slice(start, end) -> Promise<Uint8Array> }                */
+
+function blobSource(blob) {
+  return {
+    size: blob.size,
+    name: blob.name || '',
+    async slice(start, end) {
+      const s = Math.max(0, start), e = Math.min(blob.size, end);
+      if (e <= s) return new Uint8Array(0);
+      return new Uint8Array(await blob.slice(s, e).arrayBuffer());
+    }
+  };
+}
+
+function bytesSource(bytes, name) {
+  return {
+    size: bytes.length,
+    name: name || '',
+    async slice(start, end) {
+      return bytes.subarray(Math.max(0, start), Math.min(bytes.length, end));
+    }
+  };
+}
+
+/* ───────────────────────────── inflate (raw) ───────────────────────────── */
+
+async function inflateRaw(bytes) {
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter();
+  w.write(bytes); w.close();
+  const parts = [];
+  let total = 0;
+  const r = ds.readable.getReader();
+  for (;;) {
+    const { done, value } = await r.read();
+    if (done) break;
+    parts.push(value); total += value.length;
+  }
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/* Потоковая распаковка с удержанием только «головы» и «хвоста» вывода.
+   Нужна, чтобы читать размеры видео из огромных архивов, не съедая память. */
+async function inflateRawHeadTail(source, compStart, compSize, headCap, tailCap) {
+  const ds = new DecompressionStream('deflate-raw');
+  const reader = ds.readable.getReader();
+  const writer = ds.writable.getWriter();
+
+  const head = new Uint8Array(headCap);
+  let headLen = 0;
+  let tail = new Uint8Array(0);
+  let totalOut = 0;
+
+  const pump = (async () => {
+    const CHUNK = 1 << 20;
+    try {
+      for (let off = 0; off < compSize; off += CHUNK) {
+        const chunk = await source.slice(compStart + off, compStart + Math.min(compSize, off + CHUNK));
+        await writer.write(chunk);
+      }
+      await writer.close();
+    } catch (e) { try { await writer.abort(e); } catch (e2) {} }
+  })();
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalOut += value.length;
+      if (headLen < headCap) {
+        const take = Math.min(headCap - headLen, value.length);
+        head.set(value.subarray(0, take), headLen); headLen += take;
+      }
+      if (value.length >= tailCap) {
+        tail = value.slice(value.length - tailCap);
+      } else {
+        const keep = Math.min(tailCap - value.length, tail.length);
+        const nt = new Uint8Array(keep + value.length);
+        nt.set(tail.subarray(tail.length - keep), 0);
+        nt.set(value, keep);
+        tail = nt;
+      }
+    }
+  } finally {
+    try { await pump; } catch (e) {}
+  }
+  return { head: head.subarray(0, headLen), tail: tail, totalOut: totalOut };
+}
+
+/* ──────────────────────────── ZIP: чтение ─────────────────────────────── */
+
+const SIG_EOCD  = [0x50, 0x4b, 0x05, 0x06];
+const SIG_EOCD64 = [0x50, 0x4b, 0x06, 0x06];
+const SIG_LOC64 = [0x50, 0x4b, 0x06, 0x07];
+
+async function zipOpen(source) {
+  const tailLen = Math.min(source.size, 66000);
+  const tail = await source.slice(source.size - tailLen, source.size);
+  const eocdRel = findSeq(tail, SIG_EOCD, undefined, true);
+  if (eocdRel < 0) throw new Error('Это не ZIP-архив (не найден EOCD)');
+
+  let cdCount = u16(tail, eocdRel + 10);
+  let cdSize = u32(tail, eocdRel + 12);
+  let cdOffset = u32(tail, eocdRel + 16);
+
+  // ZIP64: смотрим локатор перед EOCD
+  const locRel = findSeq(tail, SIG_LOC64, eocdRel, true);
+  if (locRel >= 0) {
+    const eocd64Off = u64(tail, locRel + 8);
+    const e64 = await source.slice(eocd64Off, eocd64Off + 56);
+    if (findSeq(e64, SIG_EOCD64, 0, false) === 0) {
+      cdCount = u64(e64, 32);
+      cdSize = u64(e64, 40);
+      cdOffset = u64(e64, 48);
+    }
+  }
+
+  const cd = await source.slice(cdOffset, cdOffset + cdSize);
+  const entries = [];
+  let p = 0;
+  for (let i = 0; i < cdCount && p + 46 <= cd.length; i++) {
+    if (u32(cd, p) !== 0x02014b50) break;
+    const flags = u16(cd, p + 8);
+    const method = u16(cd, p + 10);
+    const crc = u32(cd, p + 16);
+    let compSize = u32(cd, p + 20);
+    let uncompSize = u32(cd, p + 24);
+    const nameLen = u16(cd, p + 28);
+    const extraLen = u16(cd, p + 30);
+    const commentLen = u16(cd, p + 32);
+    let localOff = u32(cd, p + 42);
+    const nameBytes = cd.subarray(p + 46, p + 46 + nameLen);
+    const name = decodeName(nameBytes, !!(flags & 0x800));
+
+    // ZIP64 extra (0x0001) — переопределяет размеры/смещение
+    let ep = p + 46 + nameLen;
+    const extraEnd = ep + extraLen;
+    while (ep + 4 <= extraEnd) {
+      const hid = u16(cd, ep), hsz = u16(cd, ep + 2);
+      if (hid === 0x0001) {
+        let q = ep + 4;
+        if (uncompSize === 0xffffffff && q + 8 <= ep + 4 + hsz) { uncompSize = u64(cd, q); q += 8; }
+        if (compSize === 0xffffffff && q + 8 <= ep + 4 + hsz) { compSize = u64(cd, q); q += 8; }
+        if (localOff === 0xffffffff && q + 8 <= ep + 4 + hsz) { localOff = u64(cd, q); q += 8; }
+        break;
+      }
+      ep += 4 + hsz;
+    }
+
+    entries.push({
+      name: name,
+      isDir: name.endsWith('/') || name.endsWith('\\'),
+      method: method,
+      crc: crc,
+      compSize: compSize,
+      size: uncompSize,
+      localOff: localOff,
+      _dataStart: -1
+    });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return { source: source, entries: entries };
+}
+
+async function entryDataStart(zip, entry) {
+  if (entry._dataStart >= 0) return entry._dataStart;
+  const lh = await zip.source.slice(entry.localOff, entry.localOff + 30);
+  if (u32(lh, 0) !== 0x04034b50) throw new Error('Повреждён локальный заголовок: ' + entry.name);
+  entry._dataStart = entry.localOff + 30 + u16(lh, 26) + u16(lh, 28);
+  return entry._dataStart;
+}
+
+async function zipRead(zip, entry) {
+  const start = await entryDataStart(zip, entry);
+  const raw = await zip.source.slice(start, start + entry.compSize);
+  if (entry.method === 0) return raw;
+  if (entry.method === 8) return inflateRaw(raw);
+  throw new Error('Неподдерживаемый метод сжатия ' + entry.method + ' в ' + entry.name);
+}
+
+/* «Голова» и «хвост» распакованных данных записи — без чтения всего файла. */
+async function zipReadHeadTail(zip, entry, headCap, tailCap) {
+  const start = await entryDataStart(zip, entry);
+  if (entry.method === 0) {
+    if (entry.size <= headCap + tailCap) {
+      const all = await zip.source.slice(start, start + entry.size);
+      return { head: all, tail: all, whole: true };
+    }
+    return {
+      head: await zip.source.slice(start, start + headCap),
+      tail: await zip.source.slice(start + entry.size - tailCap, start + entry.size),
+      whole: false
+    };
+  }
+  if (entry.method !== 8) throw new Error('Неподдерживаемый метод сжатия ' + entry.method);
+  const r = await inflateRawHeadTail(zip.source, start, entry.compSize, headCap, tailCap);
+  return { head: r.head, tail: r.tail, whole: r.totalOut <= headCap };
+}
+
+/* ──────────────────────────── ZIP: запись ─────────────────────────────── */
+
+const CRC_TABLE = (function () {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes, seed) {
+  let c = (seed === undefined ? 0 : seed) ^ 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function w16(a, v) { a.push(v & 0xff, (v >>> 8) & 0xff); }
+function w32(a, v) { a.push(v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff); }
+
+/* Собирает ZIP (метод STORED) из [{name, bytes|blob, crc?, size?}].
+   Возвращает Blob. Данные держим как Blob-части, чтобы не копить всё в памяти. */
+function zipWrite(files) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+
+  for (const f of files) {
+    const nameBytes = encodeUtf8(f.name);
+    const size = f.size !== undefined ? f.size : f.bytes.length;
+    const crc = f.crc !== undefined ? f.crc : crc32(f.bytes);
+
+    const lh = [];
+    w32(lh, 0x04034b50);
+    w16(lh, 20);          // version needed
+    w16(lh, 0x0800);      // флаг UTF-8 в имени
+    w16(lh, 0);           // STORED
+    w16(lh, 0); w16(lh, 0); // время/дата
+    w32(lh, crc); w32(lh, size); w32(lh, size);
+    w16(lh, nameBytes.length); w16(lh, 0);
+    const lhBytes = new Uint8Array(lh);
+
+    parts.push(lhBytes, nameBytes, f.blob || f.bytes);
+
+    const cd = [];
+    w32(cd, 0x02014b50);
+    w16(cd, 20); w16(cd, 20);
+    w16(cd, 0x0800); w16(cd, 0);
+    w16(cd, 0); w16(cd, 0);
+    w32(cd, crc); w32(cd, size); w32(cd, size);
+    w16(cd, nameBytes.length); w16(cd, 0); w16(cd, 0);
+    w16(cd, 0); w16(cd, 0); w32(cd, 0);
+    w32(cd, offset);
+    central.push(new Uint8Array(cd), nameBytes);
+
+    offset += lhBytes.length + nameBytes.length + size;
+  }
+
+  let cdSize = 0;
+  for (const c of central) cdSize += c.length;
+
+  const eocd = [];
+  w32(eocd, 0x06054b50);
+  w16(eocd, 0); w16(eocd, 0);
+  w16(eocd, files.length); w16(eocd, files.length);
+  w32(eocd, cdSize); w32(eocd, offset);
+  w16(eocd, 0);
+
+  return new Blob(parts.concat(central, [new Uint8Array(eocd)]), { type: 'application/zip' });
+}
+
+/* ─────────────────────── размеры видео из MP4/MOV ─────────────────────── */
+
+const CONTAINER_BOXES = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'udta']);
+const AUDIO_FOURCC = new Set(['mp4a', 'ac-3', 'ec-3', 'alac', 'Opus', 'sowt', 'twos', 'ulaw',
+  'alaw', '.mp3', 'samr', 'sawb', 'dtsc', 'dtse', 'dtsh', 'dtsl', 'fLaC']);
+
+function fourcc(b, o) {
+  return String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+}
+
+function* iterBoxes(b, start, end) {
+  let pos = start;
+  while (pos + 8 <= end) {
+    let size = u32be(b, pos);
+    const type = fourcc(b, pos + 4);
+    let header = 8;
+    if (size === 1) {
+      if (pos + 16 > end) break;
+      size = u64be(b, pos + 8);
+      header = 16;
+    } else if (size === 0) {
+      size = end - pos;
+    }
+    if (size < header || pos + size > end) break;
+    yield [type, pos + header, pos + size];
+    pos += size;
+  }
+}
+function u32be(b, o) { return ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0; }
+function u16be(b, o) { return (b[o] << 8) | b[o + 1]; }
+function u64be(b, o) { return u32be(b, o) * 4294967296 + u32be(b, o + 4); }
+
+/* Структурный разбор — как в match_creatives.py (_find_stsd_dims). */
+function findStsdDims(b, start, end) {
+  for (const [type, bs, be] of iterBoxes(b, start, end)) {
+    if (type === 'stsd') {
+      const p = bs + 8; // version+flags + entry_count
+      for (const [etype, es, ee] of iterBoxes(b, p, be)) {
+        if (ee - es >= 28) {
+          const w = u16be(b, es + 24), h = u16be(b, es + 26);
+          if (w && h) return [w, h];
+        }
+      }
+    } else if (CONTAINER_BOXES.has(type)) {
+      const r = findStsdDims(b, bs, be);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+/* Резервный путь: буфер начинается «посреди» файла (хвост большого видео),
+   структуру от нуля не пройти — ищем маркер stsd напрямую. */
+function scanStsdDims(b) {
+  const SEQ = [0x73, 0x74, 0x73, 0x64]; // 'stsd'
+  let from = 0;
+  for (;;) {
+    const i = findSeq(b, SEQ, from, false);
+    if (i < 0) return null;
+    from = i + 1;
+    const entry = i + 12;              // размер(4)+тип(4) → +version/flags(4)+count(4)
+    if (entry + 40 > b.length) continue;
+    const etype = fourcc(b, entry + 4);
+    if (AUDIO_FOURCC.has(etype)) continue;
+    const w = u16be(b, entry + 32), h = u16be(b, entry + 34);
+    if (w > 0 && h > 0 && w <= 16384 && h <= 16384) return [w, h];
+  }
+}
+
+function dimsFromHeadTail(head, tail, whole) {
+  let d = null;
+  try { d = findStsdDims(head, 0, head.length); } catch (e) { d = null; }
+  if (d) return d;
+  if (!whole && tail && tail.length) {
+    try { d = scanStsdDims(tail); } catch (e) { d = null; }
+    if (d) return d;
+  }
+  if (!d) { try { d = scanStsdDims(head); } catch (e) { d = null; } }
+  return d;
+}
+
+/* ───────────────────────────── XML утилиты ────────────────────────────── */
+
+function unescapeXml(s) {
+  if (s.indexOf('&') < 0) return s;
+  return s.replace(/&(#x?[0-9a-fA-F]+|amp|lt|gt|quot|apos);/g, function (m, g) {
+    switch (g) {
+      case 'amp': return '&';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      case 'quot': return '"';
+      case 'apos': return "'";
+      default:
+        return g[1] === 'x' || g[1] === 'X'
+          ? String.fromCodePoint(parseInt(g.slice(2), 16))
+          : String.fromCodePoint(parseInt(g.slice(1), 10));
+    }
+  });
+}
+
+function escapeXml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c];
+  // eslint-disable-next-line no-control-regex
+  }).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+}
+
+/* ──────────────────────────── XLSX: чтение ────────────────────────────── */
+
+function colToIndex(ref) { // 'BC12' -> 54 (0-based)
+  let n = 0;
+  for (let i = 0; i < ref.length; i++) {
+    const c = ref.charCodeAt(i);
+    if (c >= 65 && c <= 90) n = n * 26 + (c - 64);
+    else if (c >= 97 && c <= 122) n = n * 26 + (c - 96);
+    else break;
+  }
+  return n - 1;
+}
+
+function parseSharedStrings(xml) {
+  const out = [];
+  const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>|<si\b[^>]*\/>/g;
+  let m;
+  while ((m = siRe.exec(xml))) {
+    const inner = m[1] || '';
+    let text = '';
+    const tRe = /<t\b[^>]*>([\s\S]*?)<\/t>|<t\b[^>]*\/>/g;
+    let t;
+    while ((t = tRe.exec(inner))) text += unescapeXml(t[1] || '');
+    out.push(text);
+  }
+  return out;
+}
+
+function parseSheetXml(xml, shared) {
+  const rows = [];
+  const rowRe = /<row\b([^>]*)(?:\/>|>([\s\S]*?)<\/row>)/g;
+  let rm;
+  while ((rm = rowRe.exec(xml))) {
+    const attrs = rm[1] || '';
+    const body = rm[2] || '';
+    const rAttr = /\br="(\d+)"/.exec(attrs);
+    const rowIdx = rAttr ? parseInt(rAttr[1], 10) - 1 : rows.length;
+    const cells = [];
+    const cRe = /<c\b([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    let cm, autoCol = 0;
+    while ((cm = cRe.exec(body))) {
+      const cAttrs = cm[1] || '';
+      const cBody = cm[2] || '';
+      const refM = /\br="([A-Za-z]+\d+)"/.exec(cAttrs);
+      const col = refM ? colToIndex(refM[1]) : autoCol;
+      autoCol = col + 1;
+      const tM = /\bt="([^"]+)"/.exec(cAttrs);
+      const type = tM ? tM[1] : 'n';
+      let val = null;
+      if (type === 'inlineStr') {
+        let text = '';
+        const tRe = /<t\b[^>]*>([\s\S]*?)<\/t>|<t\b[^>]*\/>/g;
+        let t;
+        while ((t = tRe.exec(cBody))) text += unescapeXml(t[1] || '');
+        val = text;
+      } else {
+        const vM = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(cBody);
+        const raw = vM ? unescapeXml(vM[1]) : null;
+        if (raw === null || raw === '') val = null;
+        else if (type === 's') val = shared[parseInt(raw, 10)];
+        else if (type === 'str' || type === 'e') val = raw;
+        else if (type === 'b') val = raw === '1';
+        else { const num = Number(raw); val = isNaN(num) ? raw : num; }
+      }
+      cells[col] = val === undefined ? null : val;
+    }
+    for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = null;
+    rows[rowIdx] = cells;
+  }
+  for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+  return rows;
+}
+
+/* Читает xlsx → { sheets: [{name, rows}] }. rows — массив массивов ячеек. */
+async function readXlsx(source) {
+  const zip = await zipOpen(source);
+  const byName = {};
+  for (const e of zip.entries) if (!e.isDir) byName[e.name.replace(/^\/+/, '')] = e;
+
+  async function text(name) {
+    const e = byName[name];
+    if (!e) return null;
+    return utf8Loose.decode(await zipRead(zip, e));
+  }
+
+  const wbXml = await text('xl/workbook.xml');
+  if (!wbXml) throw new Error('Это не файл .xlsx (нет xl/workbook.xml)');
+  const relsXml = (await text('xl/_rels/workbook.xml.rels')) || '';
+
+  const rels = {};
+  const relRe = /<Relationship\b([^>]*)\/?>/g;
+  let rm;
+  while ((rm = relRe.exec(relsXml))) {
+    const a = rm[1];
+    const id = /\bId="([^"]+)"/.exec(a);
+    const tgt = /\bTarget="([^"]+)"/.exec(a);
+    if (id && tgt) rels[id[1]] = unescapeXml(tgt[1]);
+  }
+
+  let shared = [];
+  const ssXml = await text('xl/sharedStrings.xml');
+  if (ssXml) shared = parseSharedStrings(ssXml);
+
+  const sheets = [];
+  const shRe = /<sheet\b([^>]*)\/?>/g;
+  let sm;
+  while ((sm = shRe.exec(wbXml))) {
+    const a = sm[1];
+    const nameM = /\bname="([^"]*)"/.exec(a);
+    const ridM = /\br:id="([^"]+)"/.exec(a) || /\bid="([^"]+)"/.exec(a);
+    const name = nameM ? unescapeXml(nameM[1]) : 'Sheet' + (sheets.length + 1);
+    let target = ridM ? rels[ridM[1]] : null;
+    if (!target) target = 'worksheets/sheet' + (sheets.length + 1) + '.xml';
+    let path = target.replace(/^\/+/, '');
+    if (!/^xl\//.test(path)) path = 'xl/' + path;
+    const xml = await text(path);
+    sheets.push({ name: name, rows: xml ? parseSheetXml(xml, shared) : [] });
+  }
+  return { sheets: sheets };
+}
+
+/* ──────────────────────────── XLSX: запись ────────────────────────────── */
+/* Стили (индексы cellXfs):
+     0 обычный · 1 шапка · 2 тело · 3 тело-красное · 4 тело-зелёное
+     5 гиперссылка · 6 число 0.000000                                        */
+
+const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+'<numFmts count="1"><numFmt numFmtId="164" formatCode="0.000000"/></numFmts>' +
+'<fonts count="4">' +
+  '<font><sz val="10"/><name val="Arial"/></font>' +
+  '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>' +
+  '<font><u/><sz val="10"/><color rgb="FF0563C1"/><name val="Arial"/></font>' +
+  '<font><sz val="10"/><name val="Arial"/></font>' +
+'</fonts>' +
+'<fills count="5">' +
+  '<fill><patternFill patternType="none"/></fill>' +
+  '<fill><patternFill patternType="gray125"/></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FF2F3B52"/><bgColor indexed="64"/></patternFill></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFFCE4E4"/><bgColor indexed="64"/></patternFill></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFE7F4E4"/><bgColor indexed="64"/></patternFill></fill>' +
+'</fills>' +
+'<borders count="2">' +
+  '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+  '<border><left style="thin"><color rgb="FFD0D0D0"/></left><right style="thin"><color rgb="FFD0D0D0"/></right>' +
+  '<top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border>' +
+'</borders>' +
+'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+'<cellXfs count="7">' +
+  '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+  '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+'</cellXfs>' +
+'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+'</styleSheet>';
+
+const S = { PLAIN: 0, HEADER: 1, BODY: 2, WARN: 3, OK: 4, LINK: 5, NUM6: 6 };
+
+function indexToCol(i) {
+  let s = '';
+  i += 1;
+  while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); }
+  return s;
+}
+
+/* Лист: { name, cols:[ширины], freeze:true, rows:[ [ {v,s,link} | значение ] ] } */
+function sheetToXml(sheet) {
+  const hyperlinks = [];
+  let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' +
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+
+  x += '<sheetViews><sheetView workbookViewId="0">';
+  if (sheet.freeze !== false) {
+    x += '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>';
+  }
+  x += '</sheetView></sheetViews>';
+
+  if (sheet.cols && sheet.cols.length) {
+    x += '<cols>';
+    sheet.cols.forEach(function (w, i) {
+      x += '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
+    });
+    x += '</cols>';
+  }
+
+  x += '<sheetData>';
+  sheet.rows.forEach(function (row, ri) {
+    const rn = ri + 1;
+    x += '<row r="' + rn + '"' + (ri === 0 ? ' ht="30" customHeight="1"' : '') + '>';
+    row.forEach(function (cell, ci) {
+      if (cell === null || cell === undefined) return;
+      const obj = (typeof cell === 'object' && cell !== null && !(cell instanceof Date)) ? cell : { v: cell };
+      let v = obj.v;
+      if (v === null || v === undefined || v === '') {
+        if (obj.s === undefined) return;
+        v = '';
+      }
+      const ref = indexToCol(ci) + rn;
+      const st = obj.s === undefined ? (ri === 0 ? S.HEADER : S.BODY) : obj.s;
+      if (obj.link) hyperlinks.push({ ref: ref, url: obj.link });
+      if (typeof v === 'number' && isFinite(v)) {
+        x += '<c r="' + ref + '" s="' + st + '"><v>' + v + '</v></c>';
+      } else if (typeof v === 'boolean') {
+        x += '<c r="' + ref + '" s="' + st + '" t="b"><v>' + (v ? 1 : 0) + '</v></c>';
+      } else {
+        x += '<c r="' + ref + '" s="' + st + '" t="inlineStr"><is><t xml:space="preserve">' +
+          escapeXml(v) + '</t></is></c>';
+      }
+    });
+    x += '</row>';
+  });
+  x += '</sheetData>';
+
+  if (hyperlinks.length) {
+    x += '<hyperlinks>';
+    hyperlinks.forEach(function (h, i) {
+      x += '<hyperlink ref="' + h.ref + '" r:id="rId' + (i + 1) + '"/>';
+    });
+    x += '</hyperlinks>';
+  }
+  x += '</worksheet>';
+  return { xml: x, hyperlinks: hyperlinks };
+}
+
+/* sheets: [{name, cols, freeze, rows}] → Blob (.xlsx) */
+function writeXlsx(sheets) {
+  const files = [];
+  const add = function (name, str) { files.push({ name: name, bytes: encodeUtf8(str) }); };
+
+  let ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
+  sheets.forEach(function (s, i) {
+    ct += '<Override PartName="/xl/worksheets/sheet' + (i + 1) +
+      '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+  });
+  ct += '</Types>';
+  add('[Content_Types].xml', ct);
+
+  add('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>');
+
+  let wb = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"' +
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>';
+  sheets.forEach(function (s, i) {
+    wb += '<sheet name="' + escapeXml(String(s.name).slice(0, 31).replace(/[\\/*?:[\]]/g, '_')) +
+      '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+  });
+  wb += '</sheets></workbook>';
+  add('xl/workbook.xml', wb);
+
+  let wbr = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+  sheets.forEach(function (s, i) {
+    wbr += '<Relationship Id="rId' + (i + 1) +
+      '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' +
+      (i + 1) + '.xml"/>';
+  });
+  wbr += '<Relationship Id="rId' + (sheets.length + 1) +
+    '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+  wbr += '</Relationships>';
+  add('xl/_rels/workbook.xml.rels', wbr);
+
+  add('xl/styles.xml', STYLES_XML);
+
+  sheets.forEach(function (s, i) {
+    const r = sheetToXml(s);
+    add('xl/worksheets/sheet' + (i + 1) + '.xml', r.xml);
+    if (r.hyperlinks.length) {
+      let rl = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+      r.hyperlinks.forEach(function (h, j) {
+        rl += '<Relationship Id="rId' + (j + 1) +
+          '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="' +
+          escapeXml(h.url) + '" TargetMode="External"/>';
+      });
+      rl += '</Relationships>';
+      add('xl/worksheets/_rels/sheet' + (i + 1) + '.xml.rels', rl);
+    }
+  });
+
+  const blob = zipWrite(files);
+  return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+/* ──────────────────── общие хелперы адресных программ ─────────────────── */
+
+/* Нормализация имени оператора: нижний регистр, пунктуация → пробел.
+   Точный аналог _norm() из tt.py: \w сохраняет буквы, цифры и подчёркивание. */
+function normName(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normRes(s) {
+  if (s === null || s === undefined) return null;
+  const m = /(\d+)\s*[xхXХ×*]\s*(\d+)/.exec(String(s));
+  return m ? parseInt(m[1], 10) + 'x' + parseInt(m[2], 10) : null;
+}
+
+function parseRes(s) {
+  if (s === null || s === undefined) return null;
+  const m = /(\d+)\s*[xхXХ×*]\s*(\d+)/.exec(String(s));
+  return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
+}
+
+function normAspect(s) {
+  if (s === null || s === undefined) return null;
+  const m = /(\d+)\s*:\s*(\d+)/.exec(String(s));
+  return m ? parseInt(m[1], 10) + ':' + parseInt(m[2], 10) : null;
+}
+
+function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { const t = b; b = a % b; a = t; } return a; }
+function reduceRatio(w, h) { const g = gcd(w, h) || 1; return [w / g, h / g]; }
+
+function cellStr(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim();
+}
+
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+}
+
+/* ────────────────────────────── экспорт ───────────────────────────────── */
+
+root.OmniLib = {
+  blobSource: blobSource, bytesSource: bytesSource,
+  zipOpen: zipOpen, zipRead: zipRead, zipReadHeadTail: zipReadHeadTail, zipWrite: zipWrite,
+  inflateRaw: inflateRaw, crc32: crc32,
+  readXlsx: readXlsx, writeXlsx: writeXlsx, S: S,
+  findStsdDims: findStsdDims, scanStsdDims: scanStsdDims, dimsFromHeadTail: dimsFromHeadTail,
+  normName: normName, normRes: normRes, parseRes: parseRes, normAspect: normAspect,
+  reduceRatio: reduceRatio, cellStr: cellStr, download: download,
+  escapeXml: escapeXml, encodeUtf8: encodeUtf8
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.OmniLib;
+
+</script>
+<script>
+/* Автогенерировано из tt.py — не править руками.
+   Пересобрать: python lib/gen_tt_data.py */
+(function (root) {
+  root.TTData = {
+    "YADISK_PUBLIC_KEY": "https://disk.360.yandex.ru/d/vxW2CKH5WQhofQ",
+    "LINK_DISPLAY_TEXT": "Открыть ТТ",
+    "OPERATOR_ALIASES": {
+      "Russ Outdoor": "Русс",
+      "Реклама Центр Outdoor": "РЦ",
+      "Мособлреклама": "Мособл",
+      "Sunlight Outdoor": "Санлайт",
+      "Инсайт Медиа": "Инсайт",
+      "MAER (Outdoor)": "МАЕР",
+      "МАЕР (Outdoor)": "МАЕР",
+      "МАЕР": "МАЕР",
+      "test@maergroup.ru": "МАЕР"
+    },
+    "RUSS_OPERATORS": [
+      "russ outdoor"
+    ],
+    "RUSS_10SEC_FORMATS": [
+      "CITY_FORMAT",
+      "PVZ_SCREEN"
+    ],
+    "MAER_OUTDOOR_OPERATORS": [
+      "maer outdoor",
+      "test maergroup ru",
+      "маер",
+      "маер outdoor"
+    ],
+    "FLAT_DURATIONS": {
+      "lbl": 15
+    },
+    "INVENTORY_DURATIONS": [
+      [
+        "2 Этаж",
+        "CITY_BOARD",
+        15
+      ],
+      [
+        "2 Этаж",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "2 Этаж",
+        "SUPERSITE",
+        15
+      ],
+      [
+        "3 Арт",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "3 Арт",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "3 Арт",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "3 Арт",
+        "OTHER",
+        5
+      ],
+      [
+        "3 Арт",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "3D.LED.PVL",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "Alooh",
+        "OTHER",
+        10
+      ],
+      [
+        "ARV City Digital",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "ARV City Digital",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "City Screen",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "City Screen",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Creative City",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Creative City",
+        "OTHER",
+        15
+      ],
+      [
+        "DF Media",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "DF Media",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "EQ Digital",
+        "OTHER",
+        10
+      ],
+      [
+        "FOX publicity",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "FOX publicity",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Global Traffic",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "LBL",
+        "MEDIAFACADE",
+        60
+      ],
+      [
+        "LED Культура",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "LED Культура",
+        "OTHER",
+        5
+      ],
+      [
+        "LIFT РЕКЛАМА",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "LIFT РЕКЛАМА",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Lume",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Lume",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Lume",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "MAER (Indoor)",
+        "OTHER",
+        10
+      ],
+      [
+        "MAER (Outdoor)",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "MAER (Outdoor)",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "MAER (Outdoor)",
+        "CITY_FORMAT",
+        60
+      ],
+      [
+        "MAER (Outdoor)",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "MAER (Outdoor)",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "Mediamiles",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "Mediascreen",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Novaya Riga Outlet Village",
+        "OTHER",
+        0
+      ],
+      [
+        "OSCORP",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Panorama360",
+        "OTHER",
+        10
+      ],
+      [
+        "RGB Graphics",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "RTS Decaux",
+        "CITY_BOARD",
+        8
+      ],
+      [
+        "RTS Decaux",
+        "CITY_FORMAT",
+        8
+      ],
+      [
+        "RTS Decaux",
+        "OTHER",
+        8
+      ],
+      [
+        "Success Market",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "Sunlight Indoor",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Sunlight Indoor",
+        "OTHER",
+        10
+      ],
+      [
+        "Sunlight Outdoor",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "t2",
+        "OTHER",
+        10
+      ],
+      [
+        "test@maergroup.ru",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "test@maergroup.ru",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "test@maergroup.ru",
+        "CITY_FORMAT",
+        60
+      ],
+      [
+        "test@maergroup.ru",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "test@maergroup.ru",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "ViewUp",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "ViewUp",
+        "OTHER",
+        5
+      ],
+      [
+        "XK ADV",
+        "OTHER",
+        5
+      ],
+      [
+        "Автовокзал Котельники",
+        "OTHER",
+        10
+      ],
+      [
+        "Автографъ",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "АДАМАНТ",
+        "OTHER",
+        10
+      ],
+      [
+        "Администрация г.Элисты",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "АДР групп",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "АРК Медиа",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "АРК Медиа",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "АРК Медиа",
+        "MEDIAFACADE",
+        6
+      ],
+      [
+        "АРК Медиа",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "Аттика",
+        "CITY_FORMAT",
+        10
+      ],
+      [
+        "Аттика",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Аффикс Групп",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Аффикс Групп",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Аффикс Групп",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "Аффикс Групп",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "Аффикс Групп",
+        "OTHER",
+        5
+      ],
+      [
+        "Аффикс Групп",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "БРИЗ",
+        "OTHER",
+        10
+      ],
+      [
+        "Вирго-груп",
+        "BILLBOARD",
+        0
+      ],
+      [
+        "Вирго-груп",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "Вирго-груп",
+        "SUPERSITE",
+        0
+      ],
+      [
+        "Галич Медиа Реклама",
+        "OTHER",
+        5
+      ],
+      [
+        "ГК \"Департамент Дизайна\"",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "ГК \"Департамент Дизайна\"",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "ДваМедиа",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Деловой Мир",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Деловой Мир",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Деловой Мир",
+        "CITY_FORMAT",
+        10
+      ],
+      [
+        "Деловой Мир",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "ЕРК",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Инсайт Медиа",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "Карус",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Карус",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "МАГНИТ",
+        "OTHER",
+        5
+      ],
+      [
+        "Мегасайн",
+        "BILLBOARD",
+        0
+      ],
+      [
+        "Медиа группа Торговая Марка",
+        "BILLBOARD",
+        15
+      ],
+      [
+        "Медиа группа Торговая Марка",
+        "CITY_BOARD",
+        15
+      ],
+      [
+        "Медиа группа Торговая Марка",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "Медиа группа Торговая Марка",
+        "OTHER",
+        15
+      ],
+      [
+        "Медиа группа Торговая Марка",
+        "SUPERSITE",
+        15
+      ],
+      [
+        "Медиа Траст",
+        "MEDIAFACADE",
+        20
+      ],
+      [
+        "Медиана",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "МедиаПик",
+        "CITY_FORMAT",
+        10
+      ],
+      [
+        "МедиаПик",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "Мособлреклама",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Мособлреклама",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Мособлреклама",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "Окская Ярмарка",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Перспектива",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Перспектива",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Перспектива",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "Перспектива",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "Перспектива",
+        "OTHER",
+        0
+      ],
+      [
+        "Перспектива",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "Постекс",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "ПРА Эстетика",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "ПРА Эстетика",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "РА \"Афиша\"",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА \"Афиша\"",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА \"Крым-Контакт\"",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА \"Крым-Контакт\"",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РА \"Крым-Контакт\"",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА \"ЦВЕТ\"",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА \"ЦВЕТ\"",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА \"ЦВЕТ\"",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА 13 Медиа",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА 13 Медиа",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "РА ALIF MEDIA",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА Baikal Outdoor",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА BASHE Group",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "РА Favorit Media",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА LED-REKLAMA",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА MAYKOP DIGITAL",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА MAYKOP DIGITAL",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА MORE МАРКЕТИНГА",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Prospect (г. Калининград)",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Zvenboard",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА «Аэросити»",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА «Аэросити»",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА «Аэросити»",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА «ИЗБА»",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА «Огни Медиа»",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Аляска",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Аляска",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Аляска",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА Арифметика",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Арифметика",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РА Арифметика",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА Арифметика",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА Армада (г. Чебоксары)",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Арт Ди",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Арт Ди",
+        "CITY_FORMAT",
+        10
+      ],
+      [
+        "РА Арт Ди",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА АртМастер",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Атом",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Атом",
+        "OTHER",
+        10
+      ],
+      [
+        "РА Глобал Медиа",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Голливуд",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА Горизонт",
+        "BILLBOARD",
+        15
+      ],
+      [
+        "РА Горизонт",
+        "CITY_BOARD",
+        15
+      ],
+      [
+        "РА Горизонт",
+        "MEDIAFACADE",
+        20
+      ],
+      [
+        "РА Горизонт",
+        "OTHER",
+        15
+      ],
+      [
+        "РА Гран-При",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Гранат Медиа",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "РА Диджитал Сан",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Диджитал Сан",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РА Дилайт",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Евро-реклама Медиа",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Евро-реклама Медиа",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА Комос-Медиа",
+        "OTHER",
+        10
+      ],
+      [
+        "РА Линия (г. Петрозаводск)",
+        "BILLBOARD",
+        0
+      ],
+      [
+        "РА Линия (г. Петрозаводск)",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РА Линия (Уфа)",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА М-МЕДИА",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА МАКТОН",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Мега Арт",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Мега Арт",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Медиа 1",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Медиа 1",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА Медиа 1",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА Медиа Технолоджи",
+        "BILLBOARD",
+        11
+      ],
+      [
+        "РА Медиа Технолоджи",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "РА Медиапроект",
+        "CITY_FORMAT",
+        10
+      ],
+      [
+        "РА Медиапроект",
+        "OTHER",
+        10
+      ],
+      [
+        "РА МЕДИАСОЮЗ",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА МЕДИАСОЮЗ",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА Мольберт и Братья",
+        "BILLBOARD",
+        20
+      ],
+      [
+        "РА Мольберт и Братья",
+        "CITY_BOARD",
+        20
+      ],
+      [
+        "РА Мольберт и Братья",
+        "MEDIAFACADE",
+        20
+      ],
+      [
+        "РА Мольберт и Братья",
+        "SUPERSITE",
+        20
+      ],
+      [
+        "РА МОСТ",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА МОСТ",
+        "OTHER",
+        10
+      ],
+      [
+        "РА Нива",
+        "CITY_BOARD",
+        20
+      ],
+      [
+        "РА Новый Альянс",
+        "OTHER",
+        30
+      ],
+      [
+        "РА Ноль Один Аутдор",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА Оди Медиа",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Прайм",
+        "BILLBOARD",
+        15
+      ],
+      [
+        "РА Прайм",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "РА Прайм",
+        "OTHER",
+        15
+      ],
+      [
+        "РА Проспект Групп",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "РА Проспект Групп",
+        "OTHER",
+        15
+      ],
+      [
+        "РА Ремарко",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Ремарко",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "РА Ремарко",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Ремарко",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РА Стэп-Дизайн Уссурийск",
+        "BILLBOARD",
+        0
+      ],
+      [
+        "РА Титан",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РА Фьючер Медиа",
+        "CITY_FORMAT",
+        0
+      ],
+      [
+        "РА Фьючер Медиа",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Центр-медиа",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РА Шамса-Холдинг",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "РА Элвис",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РА Элвис",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РА Юникор",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РАСВЭРО",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РАСВЭРО",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "РАСВЭРО",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РАСВЭРО",
+        "OTHER",
+        5
+      ],
+      [
+        "Реклама центр INDOOR",
+        "OTHER",
+        5
+      ],
+      [
+        "Реклама центр OUTDOOR",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Реклама центр OUTDOOR",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Реклама центр OUTDOOR",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Рекламная группа 6х3\"",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Рекламная группа 6х3\"",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Рекламная группа «Браво»",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Рекламная группа Выгода",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Рекламное агентство \"Грин Медиа\"",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Рекламное агентство «ГиГ»",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "Рекламное агентство «ГиГ»",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "Рекламное агентство «ГиГ»",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "Рекламное агентство «ГиГ»",
+        "OTHER",
+        10
+      ],
+      [
+        "Рекламное агентство «Неон»",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Рекламное агентство «Неон»",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Рекламное агентство «Неон»",
+        "OTHER",
+        5
+      ],
+      [
+        "Рекламное агентство «Неон»",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РИМ",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "РИМ",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РИМ",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "РИМ",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "РИМ",
+        "OTHER",
+        5
+      ],
+      [
+        "РИМ",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "РК «ИлАН»",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РК «ИлАН»",
+        "CITY_BOARD",
+        10
+      ],
+      [
+        "РК «ИлАН»",
+        "MEDIAFACADE",
+        10
+      ],
+      [
+        "РК «ИлАН»",
+        "SUPERSITE",
+        10
+      ],
+      [
+        "РК НОВОЕ ВРЕМЯ",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "РК Хамелеон",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "РПК \"Декор\"",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "РПК \"Декор\"",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "РПК АБВреклама",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Сахалинская рекламная компания",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Сахалинская рекламная компания",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "Сахалинская рекламная компания",
+        "MEDIAFACADE",
+        5
+      ],
+      [
+        "Сервисплат  Медиа (экраны в МФЦ)",
+        "OTHER",
+        10
+      ],
+      [
+        "Торговый центр «Портал»",
+        "MEDIAFACADE",
+        15
+      ],
+      [
+        "Трансмедиа",
+        "OTHER",
+        20
+      ],
+      [
+        "ТРК «ГОРИЗОНТ»",
+        "BILLBOARD",
+        10
+      ],
+      [
+        "ТРК «ГОРИЗОНТ»",
+        "OTHER",
+        10
+      ],
+      [
+        "ТРК Маяк - Дубна",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "ТРЦ ALIMPIC",
+        "OTHER",
+        5
+      ],
+      [
+        "ТЦ \"АКРОПОЛЬ\"",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "ТЦ Мега Молл",
+        "BILLBOARD",
+        0
+      ],
+      [
+        "ТЦ Солнечный",
+        "MEDIAFACADE",
+        0
+      ],
+      [
+        "ФЕДЕРАЛЬНОЕ АГЕНТСТВО МОНИТОРИНГА РЕКЛАМЫ (Подъездный indoor)",
+        "OTHER",
+        10
+      ],
+      [
+        "Хэт-Трик",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Хэт-Трик",
+        "CITY_BOARD",
+        5
+      ],
+      [
+        "Хэт-Трик",
+        "CITY_FORMAT",
+        5
+      ],
+      [
+        "Хэт-Трик",
+        "SUPERSITE",
+        5
+      ],
+      [
+        "Центр Рекламы «Прогресс»",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "ЦИТ МЕДИА",
+        "BILLBOARD",
+        5
+      ],
+      [
+        "Эфир",
+        "OTHER",
+        30
+      ]
+    ]
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+if (typeof module !== "undefined" && module.exports) module.exports = globalThis.TTData;
+
+</script>
+<script>
+/* ============================================================================
+   Сбор технических требований — логика (порт tt.py, версия 4.4).
+   Зависит от OmniLib и TTData.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const L = root.OmniLib;
+const D = root.TTData;
+
+const norm = L.normName;
+
+/* Предрассчитанные нормализованные индексы (как в tt.py) */
+const ALIAS_NORM = {};
+for (const k in D.OPERATOR_ALIASES) ALIAS_NORM[norm(k)] = D.OPERATOR_ALIASES[k];
+
+const RUSS_OPERATORS = new Set(D.RUSS_OPERATORS);
+const RUSS_10SEC_FORMATS = new Set(D.RUSS_10SEC_FORMATS);
+const MAER_OUTDOOR_OPERATORS = new Set(D.MAER_OUTDOOR_OPERATORS);
+const FLAT_DURATIONS = D.FLAT_DURATIONS;
+
+/* Ключ Map — «оператор + формат». Склеиваем через NUL: такого символа нет
+   ни в названиях операторов, ни в кодах форматов, поэтому разные пары
+   не могут дать одинаковый ключ (в tt.py ключом служил кортеж). */
+const KEY_SEP = '\u0000';
+
+const DURATIONS_NORM = new Map();
+for (const [op, fmt, d] of D.INVENTORY_DURATIONS) DURATIONS_NORM.set(norm(op) + KEY_SEP + fmt, d);
+
+/* Формат из АП → код таблицы: верхний регистр, пробелы/дефисы → '_'. */
+function normFormat(fmt) {
+  let f = String(fmt === null || fmt === undefined ? '' : fmt).trim().toUpperCase().replace(/\s+/g, '_');
+  f = f.replace(/-/g, '_');
+  return f.replace(/_+/g, '_');
+}
+
+/* Длительность (сек) или null. Приоритет: Русс → MAER (Outdoor) → фикс. → словарь. */
+function lookupDuration(operator, screenFormat) {
+  const op = norm(operator);
+  const fmt = normFormat(screenFormat);
+
+  if (RUSS_OPERATORS.has(op)) return RUSS_10SEC_FORMATS.has(fmt) ? 10 : 5;
+  if (MAER_OUTDOOR_OPERATORS.has(op)) return fmt === 'MEDIAFACADE' ? 10 : 5;
+  if (Object.prototype.hasOwnProperty.call(FLAT_DURATIONS, op)) return FLAT_DURATIONS[op];
+
+  const v = DURATIONS_NORM.get(op + KEY_SEP + fmt);
+  return v === undefined ? null : v;
+}
+
+/* Имя оператора из АП → нормализованный токен имени файла на Диске. */
+function operatorToken(apOperator) {
+  const n = norm(apOperator);
+  const token = Object.prototype.hasOwnProperty.call(ALIAS_NORM, n) ? ALIAS_NORM[n] : apOperator;
+  return norm(token);
+}
+
+/* Имя файла → [оператор_норм, разрешение, соотношение, признак_общего]. */
+function parseFilename(name) {
+  const base = String(name).replace(/\.[^.]*$/, '').trim();
+
+  const resM = /\d+\s*[xхXХ×]\s*\d+/.exec(base);
+  const aspM = /\d+\s*:\s*\d+/.exec(base);
+  const obshM = /общее/i.exec(base);
+
+  const cands = [resM, aspM, obshM].filter(Boolean);
+  let operator;
+  if (cands.length) {
+    const cut = Math.min.apply(null, cands.map(function (m) { return m.index; }));
+    operator = base.slice(0, cut).trim();
+  } else {
+    operator = base;   // напр. «Инсайт», «Санлайт» — общий файл без суффикса
+  }
+
+  return [
+    norm(operator),
+    resM ? L.normRes(resM[0]) : null,
+    aspM ? L.normAspect(aspM[0]) : null,
+    !!obshM || cands.length === 0
+  ];
+}
+
+/* ─────────────── индекс ссылок публичной папки Яндекс.Диска ─────────────── */
+
+const YA_API = 'https://cloud-api.yandex.net/v1/disk/public/resources';
+
+class YandexDiskLinker {
+  constructor(publicKey) {
+    this.publicKey = publicKey;
+    this.index = new Map();     // 'res|op|1920x1080' → ссылка
+    this.files = [];
+    this.unpublished = [];
+    this.dirsSeen = 0;
+    this.apiCalls = 0;
+    this.ok = false;
+  }
+
+  async fetchAll(onProgress) {
+    this.apiCalls = 0;
+    this.dirsSeen = 0;
+    const files = await this._walk('/', 0, 12, 400, onProgress);
+    this.files = files;
+
+    for (const it of files) {
+      const link = it.public_url || '';
+      const [op, res, asp, isObsh] = parseFilename(it.name || '');
+      if (!link) { this.unpublished.push(it.name || ''); continue; }
+      if (res) this.index.set('res|' + op + '|' + res, link);
+      if (asp) this.index.set('asp|' + op + '|' + asp, link);
+      if (isObsh) this.index.set('obsh|' + op, link);
+    }
+    this.ok = true;
+    return this;
+  }
+
+  async _walk(path, depth, maxDepth, maxCalls, onProgress) {
+    const collected = [];
+    let offset = 0;
+    const limit = 200;
+    for (;;) {
+      if (this.apiCalls >= maxCalls) break;
+      const url = YA_API + '?public_key=' + encodeURIComponent(this.publicKey) +
+        '&limit=' + limit + '&offset=' + offset +
+        (path && path !== '/' ? '&path=' + encodeURIComponent(path) : '');
+      const r = await fetch(url);
+      this.apiCalls++;
+      if (!r.ok) throw new Error('Яндекс.Диск ответил ' + r.status + ' ' + r.statusText);
+      const j = await r.json();
+      const emb = j._embedded || {};
+      const items = emb.items || [];
+      const total = emb.total === undefined ? items.length : emb.total;
+      collected.push.apply(collected, items);
+      if (onProgress) onProgress(collected.length, total, path);
+      offset += limit;
+      if (offset >= total || !items.length) break;
+    }
+
+    const files = collected.filter(function (it) { return it.type === 'file'; });
+    const dirs = collected.filter(function (it) { return it.type === 'dir'; });
+    if (depth < maxDepth) {
+      for (const d of dirs) {
+        this.dirsSeen++;
+        if (d.path) {
+          const sub = await this._walk(d.path, depth + 1, maxDepth, maxCalls, onProgress);
+          files.push.apply(files, sub);
+        }
+      }
+    }
+    return files;
+  }
+
+  /* Подбор ссылки: разрешение → соотношение → общее. */
+  findLink(apOperator, resolution, aspect) {
+    const op = operatorToken(apOperator);
+    const res = L.normRes(resolution);
+    const asp = L.normAspect(aspect);
+    if (res && this.index.has('res|' + op + '|' + res)) return this.index.get('res|' + op + '|' + res);
+    if (asp && this.index.has('asp|' + op + '|' + asp)) return this.index.get('asp|' + op + '|' + asp);
+    if (this.index.has('obsh|' + op)) return this.index.get('obsh|' + op);
+    return '';
+  }
+}
+
+/* ─────────────────────── чтение адресной программы ─────────────────────── */
+
+const AP_SIGNALS = new Set(['Оператор', 'Формат экрана', 'Разрешение', 'Вид. разрешение',
+  'Соотношение сторон', 'GID']);
+
+/* Ищет строку-шапку: где есть «Оператор» и больше всего знакомых колонок. */
+function findHeader(rows, maxScan) {
+  let bestIdx = null, bestScore = 0;
+  const n = Math.min(rows.length, maxScan || 60);
+  for (let i = 0; i < n; i++) {
+    const cells = new Set();
+    for (const v of (rows[i] || [])) {
+      const s = L.cellStr(v);
+      if (s) cells.add(s);
+    }
+    if (!cells.has('Оператор')) continue;
+    let score = 0;
+    for (const c of cells) if (AP_SIGNALS.has(c)) score++;
+    if (score > bestScore) { bestScore = score; bestIdx = i; }
+  }
+  return bestScore >= 2 ? { idx: bestIdx, score: bestScore } : { idx: null, score: 0 };
+}
+
+/* Находит таблицу АП на любом листе и в любой строке (как read_ap_data в tt.py). */
+function findApTable(workbook) {
+  let best = null;
+  for (const sheet of workbook.sheets) {
+    if (!sheet.rows.length) continue;
+    const h = findHeader(sheet.rows);
+    if (h.idx === null) continue;
+    const nRows = sheet.rows.length - h.idx - 1;
+    if (!best || h.score > best.score || (h.score === best.score && nRows > best.nRows)) {
+      best = { score: h.score, nRows: nRows, sheet: sheet, headerIdx: h.idx };
+    }
+  }
+  if (!best) return null;
+
+  const header = (best.sheet.rows[best.headerIdx] || []).map(L.cellStr);
+  const colOf = {};
+  header.forEach(function (name, i) {
+    if (name && !(name in colOf)) colOf[name] = i;   // первое вхождение, как в pandas
+  });
+
+  const data = [];
+  for (let i = best.headerIdx + 1; i < best.sheet.rows.length; i++) {
+    const row = best.sheet.rows[i] || [];
+    let allEmpty = true;
+    for (const v of row) if (v !== null && v !== undefined && v !== '') { allEmpty = false; break; }
+    if (allEmpty) continue;                          // dropna(how='all')
+    data.push(row);
+  }
+
+  return {
+    sheetName: best.sheet.name,
+    headerRow: best.headerIdx + 1,
+    colOf: colOf,
+    rows: data
+  };
+}
+
+/* Значение по первому подходящему имени столбца (аналог get_field). */
+function getField(table, row, names) {
+  for (const n of names) {
+    if (n in table.colOf) {
+      const v = row[table.colOf[n]];
+      if (v !== null && v !== undefined && v !== '') return v;
+    }
+  }
+  return '';
+}
+
+/* Обработка всех строк АП → { results, durationMisses } */
+function processAp(table, linker) {
+  const results = [];
+  const durationMisses = new Set();
+
+  for (const row of table.rows) {
+    const operator = getField(table, row, ['Оператор']);
+    const screenFormat = getField(table, row, ['Формат экрана']);
+    const resolution = getField(table, row, ['Разрешение', 'Вид. разрешение']);
+    const aspect = getField(table, row, ['Соотношение сторон']);
+
+    const dur = lookupDuration(operator, screenFormat);
+    if (dur === null) {
+      durationMisses.add(L.cellStr(operator) + ' | ' + L.cellStr(screenFormat));
+    }
+
+    results.push({
+      'Оператор': L.cellStr(operator),
+      'Формат экрана': L.cellStr(screenFormat),
+      'Разрешение': L.cellStr(resolution),
+      'Соотношение сторон': L.cellStr(aspect),
+      'Длительность (сек)': dur === null ? '' : dur,
+      'Ссылка на ТТ': linker ? linker.findLink(operator, resolution, aspect) : ''
+    });
+  }
+
+  return { results: results, durationMisses: durationMisses };
+}
+
+/* Дедупликация по (оператор, разрешение, длительность) — как в tt.py. */
+function deduplicate(results) {
+  const seen = new Set();
+  const out = [];
+  for (const r of results) {
+    const key = String(r['Оператор']).trim() + KEY_SEP +
+                String(r['Разрешение']).trim() + KEY_SEP +
+                String(r['Длительность (сек)']).trim();
+    if (!seen.has(key)) { seen.add(key); out.push(r); }
+  }
+  return out;
+}
+
+const COLUMNS = ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон',
+                 'Длительность (сек)', 'Ссылка на ТТ'];
+
+/* Готовит xlsx-лист «Результаты» с кликабельными ссылками. */
+function buildReport(results) {
+  const rows = [COLUMNS.slice()];
+  for (const r of results) {
+    const row = [];
+    for (const c of COLUMNS) {
+      if (c === 'Ссылка на ТТ') {
+        const url = r[c];
+        row.push(url
+          ? { v: D.LINK_DISPLAY_TEXT || url, s: L.S.LINK, link: url }
+          : { v: '', s: L.S.BODY });
+      } else {
+        row.push(r[c]);
+      }
+    }
+    rows.push(row);
+  }
+  return [{
+    name: 'Результаты',
+    cols: [26, 16, 14, 18, 17, 16],
+    rows: rows
+  }];
+}
+
+root.TTCore = {
+  normFormat: normFormat,
+  lookupDuration: lookupDuration,
+  operatorToken: operatorToken,
+  parseFilename: parseFilename,
+  YandexDiskLinker: YandexDiskLinker,
+  findHeader: findHeader,
+  findApTable: findApTable,
+  processAp: processAp,
+  deduplicate: deduplicate,
+  buildReport: buildReport,
+  COLUMNS: COLUMNS,
+  DATA: D
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.TTCore;
+
+</script>
+<script>
+/* ============================================================================
+   Объединение таблиц (порт merge.py, но без привязки к трём колонкам адресов).
+
+   merge.py умел ровно одно: склеить файлы вида «Название / Широта / Долгота»,
+   взяв шапку из первого и дальше копируя строки по позициям. Здесь то же, но
+   столбцы по умолчанию сопоставляются ПО НАЗВАНИЮ — тогда файл с другим
+   порядком колонок не превратится в кашу.
+
+   Зависит от OmniLib.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const L = root.OmniLib;
+
+/* Колонки с координатами показываем с шестью знаками — как в merge.py. */
+const COORD_RE = /(широт|долгот|\blat\b|\blon\b|\blng\b|latitude|longitude)/i;
+
+/* Ключ для сравнения строк. NUL как разделитель: в данных его быть не может,
+   поэтому «а|б» и «а», «б» не дадут один и тот же ключ. */
+const KEY_SEP = String.fromCharCode(0);
+
+const DEFAULTS = {
+  matchBy: 'name',          // 'name' | 'position'
+  addSource: false,         // добавить столбец с именем файла
+  dedupe: false,            // убрать полные дубли строк
+  emptyPlaceholder: true,   // пустое первое поле → 'empty' (поведение merge.py)
+  sheetName: 'Объединено'
+};
+
+function cellStr(v) {
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+
+function rowIsEmpty(row) {
+  for (const v of row) if (v !== null && v !== undefined && String(v).trim() !== '') return false;
+  return true;
+}
+
+/* Шапка — первая непустая строка листа; дальше данные. */
+function splitHeader(rows) {
+  let i = 0;
+  while (i < rows.length && rowIsEmpty(rows[i] || [])) i++;
+  if (i >= rows.length) return { header: [], data: [] };
+  const header = (rows[i] || []).map(cellStr);
+  // отрезаем хвост пустых заголовков
+  while (header.length && header[header.length - 1] === '') header.pop();
+  const data = [];
+  for (let j = i + 1; j < rows.length; j++) {
+    const row = rows[j] || [];
+    if (rowIsEmpty(row)) continue;
+    data.push(row);
+  }
+  return { header: header, data: data };
+}
+
+/* Читает файлы → [{name, header, data, sheetName, error}]. Берём первый лист,
+   как это делал wb.active в merge.py. */
+async function readTables(files, onProgress) {
+  const out = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (onProgress) onProgress(i, files.length, f.name);
+    try {
+      const wb = await L.readXlsx(L.blobSource(f));
+      if (!wb.sheets.length) throw new Error('в файле нет листов');
+      const sheet = wb.sheets[0];
+      const split = splitHeader(sheet.rows);
+      out.push({
+        name: f.name,
+        sheetName: sheet.name,
+        sheetCount: wb.sheets.length,
+        header: split.header,
+        data: split.data
+      });
+    } catch (e) {
+      out.push({ name: f.name, error: e.message, header: [], data: [] });
+    }
+  }
+  if (onProgress) onProgress(files.length, files.length, '');
+  return out;
+}
+
+/* Склейка. tables — из readTables (или собранные вручную: {name, header, data}). */
+function mergeTables(tables, options) {
+  const opt = Object.assign({}, DEFAULTS, options || {});
+  const good = tables.filter(function (t) { return !t.error; });
+  const warnings = [];
+
+  for (const t of tables) {
+    if (t.error) warnings.push('«' + t.name + '»: не прочитался — ' + t.error);
+    else if (t.sheetCount > 1) {
+      warnings.push('«' + t.name + '»: листов ' + t.sheetCount +
+                    ', взят первый («' + t.sheetName + '»)');
+    }
+  }
+  if (!good.length) {
+    return { header: [], rows: [], perFile: [], warnings: warnings,
+             duplicateRows: 0, removed: 0, columnsAdded: [] };
+  }
+
+  // ── итоговый набор столбцов ──
+  let header;
+  const columnsAdded = [];
+  if (opt.matchBy === 'name') {
+    header = good[0].header.slice();
+    const seen = new Set(header.map(function (h) { return h.toLowerCase(); }));
+    for (const t of good.slice(1)) {
+      for (const h of t.header) {
+        if (!h) continue;
+        const k = h.toLowerCase();
+        if (!seen.has(k)) {
+          seen.add(k);
+          header.push(h);
+          columnsAdded.push(h + ' (из «' + t.name + '»)');
+        }
+      }
+    }
+  } else {
+    let width = 0;
+    for (const t of good) {
+      width = Math.max(width, t.header.length);
+      for (const r of t.data) width = Math.max(width, r.length);
+    }
+    header = good[0].header.slice();
+    while (header.length < width) header.push('');
+  }
+
+  const indexByName = new Map();
+  header.forEach(function (h, i) { if (h) indexByName.set(h.toLowerCase(), i); });
+
+  // ── строки ──
+  const rows = [];
+  const perFile = [];
+  // Дубли считаем ВСЕГДА, даже когда не убираем: именно так видно, что на вход
+  // случайно попал прошлый результат склейки (в исходном merge.py такой файл
+  // молча удваивал таблицу).
+  const seenRows = new Set();
+  let duplicateRows = 0;
+  let removed = 0;
+
+  for (const t of good) {
+    // как столбцы файла ложатся в итоговые
+    let map;
+    if (opt.matchBy === 'name') {
+      map = t.header.map(function (h) {
+        const i = h ? indexByName.get(h.toLowerCase()) : undefined;
+        return i === undefined ? -1 : i;
+      });
+    } else {
+      map = header.map(function (_, i) { return i; });
+    }
+
+    let added = 0;
+    for (const src of t.data) {
+      const row = new Array(header.length).fill('');
+      if (opt.matchBy === 'name') {
+        for (let c = 0; c < src.length; c++) {
+          const to = c < map.length ? map[c] : -1;
+          if (to >= 0) row[to] = src[c] === undefined ? '' : src[c];
+        }
+      } else {
+        for (let c = 0; c < src.length && c < row.length; c++) {
+          row[c] = src[c] === undefined ? '' : src[c];
+        }
+      }
+
+      // поведение merge.py: первое поле пустое, а остальные нет → 'empty'
+      if (opt.emptyPlaceholder && cellStr(row[0]) === '') {
+        let hasRest = false;
+        for (let c = 1; c < row.length; c++) if (cellStr(row[c]) !== '') { hasRest = true; break; }
+        if (hasRest) row[0] = 'empty';
+      }
+
+      const key = row.map(cellStr).join(KEY_SEP);
+      const isDupe = seenRows.has(key);
+      if (isDupe) duplicateRows++;
+      else seenRows.add(key);
+      if (isDupe && opt.dedupe) { removed++; continue; }
+
+      rows.push({ values: row, source: t.name });
+      added++;
+    }
+    perFile.push({ name: t.name, rows: added, columns: t.header.length });
+  }
+
+  return {
+    header: header,
+    rows: rows,
+    perFile: perFile,
+    warnings: warnings,
+    duplicateRows: duplicateRows,
+    removed: removed,
+    columnsAdded: columnsAdded,
+    options: opt
+  };
+}
+
+/* Готовит лист для writeXlsx. */
+function buildReport(merged, options) {
+  const opt = Object.assign({}, DEFAULTS, merged.options || {}, options || {});
+  const header = merged.header.slice();
+  if (opt.addSource) header.push('Файл-источник');
+
+  const coordCols = new Set();
+  header.forEach(function (h, i) { if (COORD_RE.test(h)) coordCols.add(i); });
+
+  const rows = [header];
+  for (const r of merged.rows) {
+    const values = r.values.slice();
+    if (opt.addSource) values.push(r.source);
+    rows.push(values.map(function (v, i) {
+      if (coordCols.has(i) && typeof v === 'number') return { v: v, s: L.S.NUM6 };
+      return v;
+    }));
+  }
+
+  const cols = header.map(function (h, i) {
+    if (coordCols.has(i)) return 14;
+    return i === 0 ? 70 : 22;
+  });
+
+  return [{ name: String(opt.sheetName || 'Объединено').slice(0, 31), cols: cols, rows: rows }];
+}
+
+root.MergeCore = {
+  DEFAULTS: DEFAULTS,
+  readTables: readTables,
+  mergeTables: mergeTables,
+  buildReport: buildReport,
+  splitHeader: splitHeader
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.MergeCore;
+
+</script>
+<script>
+/* ============================================================================
+   Содержание гайдов. Отрисовкой занимается lib/guide-ui.js.
+
+   Гайд = несколько слайдов. Виды слайдов:
+     intro  — зачем инструмент и что он экономит
+     steps  — что делать, по шагам
+     demo   — живое мини-демо (id демо ищется в реестре guide-ui.js)
+     pits   — грабли
+     finish — с чем связан и кнопки «открыть» / «попробовать на примере»
+
+   Порядок слайдов — как в массиве. Держим 4–6 штук: гайд должен читаться
+   за минуту, иначе его закроют на втором экране.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+/* ─────────────────────────── оценки экономии ───────────────────────────────
+   ВСЕ ЦИФРЫ ЗДЕСЬ — ПРИКИДКИ, а не замеры рабочего времени. Правьте прямо в
+   этой таблице: больше нигде они не повторяются. Что помечено «замер» —
+   измерено на настоящих файлах, это менять не нужно.
+
+   manual — сколько уходит руками, tool — сколько здесь, on — на каком объёме.
+   Если цифры нет, поставьте null: блок сравнения просто не покажется. */
+const SAVINGS = {
+  techreq:   { on: 'адресная программа на 300 строк',
+               manual: '40–60 мин', manualNote: 'искать длительность по справочнику и ссылку по Диску для каждой связки',
+               tool: '15 сек', toolNote: 'вместе с выгрузкой готового файла' },
+  creatives: { on: 'архив 1,3 ГБ, 108 видео',
+               manual: '1–1,5 часа', manualNote: 'открыть каждое видео, сверить размер с экраном, разложить по папкам',
+               tool: '9 сек', toolNote: 'замер на настоящем архиве' },
+  addresses: { on: '300 объектов сети в одном городе',
+               manual: '40–60 мин', manualNote: 'листать 2ГИС и переносить адреса с координатами руками',
+               tool: '1–2 сек', toolNote: 'замер: 300 строк, 6 запросов к справочнику' },
+  merge:     { on: '36 файлов по городам',
+               manual: '20–30 мин', manualNote: 'копировать листы по очереди и следить, чтобы столбцы не разъехались',
+               tool: '3 сек', toolNote: 'вместе с проверкой на дубли' },
+  omnibuy:   { on: 'одна сделка',
+               manual: '5–10 мин', manualNote: 'считать в экселе под каждую ступень СК, легко ошибиться в знаке',
+               tool: 'сразу', toolNote: 'и видно все ступени биллинга разом' },
+  map:       { on: 'проверка одной точки',
+               manual: '3 вкладки', manualNote: 'копировать координаты в Яндекс, 2ГИС и Google по отдельности',
+               tool: '1 клик', toolNote: 'та же точка открывается в любой карте' },
+  monitoring:{ on: '30 активных кампаний',
+               manual: '1 час', manualNote: 'открыть каждую кампанию и посчитать темп в экселе',
+               tool: '5 мин', toolNote: 'таблица темпов сразу показывает, кто отстаёт' },
+  planner:   { on: 'медиаплан по региону',
+               manual: 'полдня', manualNote: 'собирать выгрузки операторов и сводить охват вручную',
+               tool: '10–15 мин', toolNote: 'вместе с выгрузкой GID и плана' }
+};
+
+/* ────────────────────────────── сами гайды ─────────────────────────────── */
+const GUIDES = {
+
+/* ═══════════════════════ технические требования ═══════════════════════ */
+techreq: {
+  title: 'Сбор технических требований',
+  letter: 'Т',
+  slides: [
+    { kind: 'intro',
+      h: 'Длительности и ТТ по адресной программе — за один проход',
+      lead: [
+        'Инструмент читает адресную программу и для каждой связки <b>оператор + формат экрана</b> сам подставляет длительность ролика. Лист и строку с шапкой находит сам — раскладывать файл не нужно.',
+        'Рядом подтягивается ссылка на технические требования с Яндекс.Диска, а одинаковые связки склеиваются в одну строку.'
+      ],
+      gain: [
+        'В справочнике 269 связок «оператор + формат», 145 операторов',
+        'Особые правила операторов учтены: Russ Outdoor, MAER (Outdoor), LBL',
+        'На выходе .xlsx с кликабельными ссылками и кнопка «копировать таблицу»'
+      ] },
+
+    { kind: 'steps',
+      h: 'Четыре шага',
+      items: [
+        { t: 'Положите адресную программу', d: 'Файл .xlsx — кликом или перетаскиванием. Нужны столбцы «Оператор» и «Формат экрана»; «Разрешение» и «Соотношение сторон» используются для подбора ссылки.' },
+        { t: 'Проверьте папку с ТТ', d: 'Ссылка на нашу общую папку уже подставлена. Свою нужно указывать, только если ТТ лежат в другом месте.' },
+        { t: 'Нажмите «Собрать ТТ»', d: 'Инструмент покажет, сколько строк прочитал, сколько связок осталось после склейки и по каким не нашлась длительность.' },
+        { t: 'Заберите результат', d: 'Скачайте .xlsx или скопируйте таблицу в буфер — она вставляется прямо в письмо или в таблицу.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Попробуйте на настоящем справочнике',
+      lead: ['Ниже — тот самый справочник, по которому работает инструмент. Выберите оператора и формат: длительность и правило, по которому она получилась, посчитаются по-настоящему.'],
+      demo: 'ttDuration' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Имя файла на Диске задаёт привязку', d: 'Работают три варианта: <code>Оператор 1920х1080</code>, <code>Оператор 2:1</code> и <code>Оператор общее</code>. Сначала ищется точное разрешение, потом соотношение сторон, потом общий файл.' },
+        { t: 'Файлы должны быть опубликованы по отдельности', d: 'Публикации одной папки не хватает: у файла внутри неё нет постоянной ссылки, и в отчёте будет пусто.' },
+        { t: 'Пустая длительность — это не сбой', d: 'Значит, такой связки «оператор + формат» в справочнике ещё нет. Она попадёт во вкладку с ненайденными — сообщите, чтобы связку добавили.' },
+        { t: 'Одна строка на связку, а не на GID', d: 'Дубли снимаются по «оператор + разрешение + длительность»: для ТТ важна связка, а не каждая поверхность.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Та же адресная программа нужна следующему инструменту — сортировке креативов. Ничего перекладывать не придётся, файл тот же.'],
+      links: [
+        { t: 'Сортировка креативов', d: 'подберёт крео под размеры экранов из этой же АП' },
+        { t: 'Объединение таблиц', d: 'если АП пришла несколькими файлами — сначала склейте их' }
+      ],
+      cta: { open: true, demo: 'Собрать по демо-программе' } }
+  ]
+},
+
+/* ═════════════════════════ сортировка креативов ═══════════════════════ */
+creatives: {
+  title: 'Сортировка креативов',
+  letter: 'С',
+  slides: [
+    { kind: 'intro',
+      h: 'Из общего архива — только те крео, что реально подойдут',
+      lead: [
+        'Размеры видео читаются <b>из самих файлов</b>, а не из названий: файл «1920x1080_final_v2.mp4» с настоящим разрешением 1280×720 не обманет.',
+        'Дальше адресная программа группируется по связкам «оператор + размер экрана», и под каждую подбирается подходящий креатив.'
+      ],
+      gain: [
+        'Правило подбора: то же соотношение сторон и размер не меньше экрана',
+        'Для Russ Outdoor — только точное совпадение размера',
+        'На выходе архив без дублей и отчёт на четырёх листах'
+      ] },
+
+    { kind: 'steps',
+      h: 'Три шага',
+      items: [
+        { t: 'Положите адресную программу', d: 'Нужны столбцы с оператором, разрешением и GID.' },
+        { t: 'Положите креативы', d: 'Архив .zip или отдельные видеофайлы. Вложенные архивы внутри архива тоже разбираются.' },
+        { t: 'Нажмите «Подобрать креативы»', d: 'В отчёте три вкладки: что отправляем, какие экраны остались без крео и какие файлы не отдали свой размер.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Как работает правило подбора',
+      lead: ['Выберите экран — и увидите, какой креатив под него уйдёт и почему остальные не подошли. Соотношения сторон считаются тем же кодом, что и в инструменте.'],
+      demo: 'creativeMatch',
+      hint: 'Демо-прогона на готовых данных у этого инструмента нет: для него нужен настоящий архив с видео, а размеры читаются из самих файлов. Возьмите архив любой прошлой кампании — на нём и видно быстрее всего.' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'rar и 7z не читаются', d: 'Браузер умеет только zip. Пересохраните архив в .zip — или закиньте видеофайлы напрямую, без архива.' },
+        { t: 'Креатив меньше экрана не подойдёт', d: 'Даже при точном соотношении сторон: растянутая картинка на экране выглядит плохо, поэтому такие пары не склеиваются.' },
+        { t: 'Russ Outdoor требует ровно свой размер', d: 'Крео «с запасом» им не подходит. Если точного размера нет, экран попадёт в список незакрытых.' },
+        { t: 'Видео без размеров стоит проверить руками', d: 'Редкие контейнеры не отдают разрешение. Такие файлы собраны в отдельную вкладку — из подбора они выпадают.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Незакрытые экраны из отчёта — это список того, что нужно запросить у дизайна. С длительностями роликов поможет соседний инструмент.'],
+      links: [
+        { t: 'Сбор технических требований', d: 'длительность ролика и ТТ по той же адресной программе' },
+        { t: 'Объединение таблиц', d: 'если отчёты по нескольким кампаниям нужно свести в один файл' }
+      ],
+      cta: { open: true } }
+  ]
+},
+
+/* ════════════════════════════ подбор адресов ═══════════════════════════ */
+addresses: {
+  title: 'Подбор адресов',
+  letter: 'А',
+  slides: [
+    { kind: 'intro',
+      h: 'Адреса сети из справочника 2ГИС — списком с координатами',
+      lead: [
+        'Задаёте запрос и город — получаете таблицу «название, широта, долгота». Дубли снимаются по координатам: один объект не попадёт в файл дважды.',
+        'Ключ 2ГИС живёт на сервере панели, вводить его не нужно.'
+      ],
+      gain: [
+        'Лимит результатов задаёте сами — поиск останавливается, как только набрал',
+        'История запросов держится неделю и переживает F5',
+        'Несколько запросов можно объединить в один файл одной кнопкой'
+      ] },
+
+    { kind: 'steps',
+      h: 'Как искать',
+      items: [
+        { t: 'Один запрос и один город', d: 'Именно по одному. «Пятёрочка, Магнит» справочник воспримет как одну строку и вернёт ерунду.' },
+        { t: 'Скажите, сколько объектов нужно', d: 'В 9 случаях из 10 полная выдача не нужна. Поиск прекратится, как только наберёт указанное число.' },
+        { t: 'Полнота — обычно «быстро»', d: 'Один широкий поиск закрывает большинство задач. Сетка 4×4 или 6×6 нужна, если в крупном городе явно недобрали.' },
+        { t: 'Заберите файл', d: 'Скачайте .xlsx или скопируйте таблицу. Прогон сам ляжет в историю ниже.' },
+        { t: 'Нужно несколько запросов — соберите их в истории', d: 'Прогоните по очереди, отметьте нужные записи галочками и нажмите «объединить и скачать»: получится один файл со столбцом источника.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Почему объектов меньше, чем нашёл справочник',
+      lead: ['Справочник отдаёт один и тот же объект по нескольким запросам и с разных страниц. Инструмент сравнивает координаты и оставляет по одному. Нажмите — увидите на маленькой выдаче.'],
+      demo: 'addrDedupe' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Списки через запятую не работают', d: 'Ни в запросе, ни в городе. Нужно несколько — прогоните по очереди, а потом объедините через историю.' },
+        { t: 'Радиус — максимум 40 км', d: 'Это предел API 2ГИС, а не наша настройка. Для агломерации имеет смысл прогнать города по отдельности.' },
+        { t: '«Быстро» в большом городе может недобрать', d: 'Если объектов заметно меньше ожидаемого, включите сетку — она обходит город секторами и находит больше.' },
+        { t: 'История живёт в этом браузере', d: 'Неделя, 20 записей. Другой компьютер и режим инкогнито её не увидят — нужный файл лучше скачать сразу.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Куда девать результат',
+      lead: ['Файл со списком адресов принимает планировщик: шаг «Настройки» → «Рядом с адресом» → «Импортировать список». Радиус вокруг точек задаётся там же.'],
+      links: [
+        { t: 'Планировщик', d: 'подберёт экраны вокруг этих адресов' },
+        { t: 'Карта-компаньон', d: 'проверить спорную точку глазами' },
+        { t: 'Объединение таблиц', d: 'если файлы уже скачаны и их надо склеить' }
+      ],
+      cta: { open: true, demo: 'Найти «Пятёрочка» в Казани' } }
+  ]
+},
+
+/* ═══════════════════════════ объединение таблиц ═══════════════════════ */
+merge: {
+  title: 'Объединение таблиц',
+  letter: 'Σ',
+  slides: [
+    { kind: 'intro',
+      h: 'Несколько .xlsx в один файл, без доведения руками',
+      lead: [
+        'Шапка берётся из первого файла, дальше строки идут подряд. Столбцы сопоставляются <b>по названию</b>, поэтому файл с другим порядком колонок не превратится в кашу.',
+        'Если в каком-то файле есть свои столбцы, они добавятся в конец шапки, а не перезапишут чужие данные.'
+      ],
+      gain: [
+        'Полные дубли строк считаются всегда — даже когда вы их не убираете',
+        'Можно добавить столбец с именем файла-источника',
+        'Из каждого файла берётся первый лист'
+      ] },
+
+    { kind: 'steps',
+      h: 'Три шага',
+      items: [
+        { t: 'Выберите файлы', d: 'Сразу несколько, кликом или перетаскиванием. Лишний можно убрать из списка.' },
+        { t: 'Проверьте способ сопоставления', d: '«По названию» — обычный случай. «По порядку столбцов» нужно, если заголовки написаны по-разному, а колонки идут одинаково.' },
+        { t: 'Объедините и скачайте', d: 'Плитки покажут, сколько строк и столбцов получилось и сколько нашлось дублей.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Что значит «по названию»',
+      lead: ['У второй таблицы столбцы идут в другом порядке, а у третьей есть свой. Нажмите «объединить» — склейка выполнится тем же кодом, что и в инструменте.'],
+      demo: 'mergeDemo' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Не кладите обратно прошлый результат', d: 'Самая частая история: файл «Все_города.xlsx» лежит в той же папке и попадает во вход — таблица удваивается. В нашем архиве так и вышло: 5666 строк вместо 2833. Счётчик дублей покажет это сразу.' },
+        { t: 'Заголовок должен быть заголовком', d: 'Шапкой считается первая непустая строка листа. Если сверху есть название отчёта или пустые строки с пометками, уберите их.' },
+        { t: 'Берётся только первый лист', d: 'Если данные разложены по листам внутри одного файла, инструмент возьмёт первый и предупредит об остальных.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Если объединять нужно результаты подбора адресов, туда встроен тот же механизм: история запросов → галочки → «объединить и скачать». Скачивать по очереди и потом склеивать не обязательно.'],
+      links: [
+        { t: 'Подбор адресов', d: 'объединение прямо из истории запросов' }
+      ],
+      cta: { open: true, demo: 'Склеить демо-файлы' } }
+  ]
+},
+
+/* ══════════════════════════ калькулятор надбавки ══════════════════════ */
+omnibuy: {
+  title: 'OmniBuy — калькулятор надбавки',
+  letter: 'O',
+  slides: [
+    { kind: 'intro',
+      h: 'Какую надбавку поставить в системе, чтобы не уйти в минус',
+      lead: [
+        'Вводите стоимость подрядчика и минимальную комиссию агентства — калькулятор считает надбавку и показывает разбивку заработка по всем ступеням суперкомиссии.',
+        'Надбавка считается <b>под максимальный СК</b>. Это осознанно: при меньшем СК мы заработаем больше, а не меньше.'
+      ],
+      gain: [
+        'Видно сразу все ступени биллинга: от «до 200К» до «свыше 9М»',
+        'По каждой ступени — сколько СК, сколько платит клиент и сколько остаётся нам',
+        'Проценты по ступеням можно поправить под конкретное соглашение'
+      ] },
+
+    { kind: 'steps',
+      h: 'Что заполнить',
+      items: [
+        { t: 'Стоимость подрядчика', d: 'Сумма, которую мы платим за размещение.' },
+        { t: 'Минимальная комиссия агентства', d: 'В процентах от цены в системе. По умолчанию 10%.' },
+        { t: 'При необходимости — проценты СК', d: 'Ступени по умолчанию 10 / 12 / 14 / 16 / 20%. Ссылка «сбросить» возвращает их обратно.' },
+        { t: 'Читайте надбавку и разбивку', d: 'Крупная цифра — надбавка в системе. Ниже строка на каждую ступень биллинга.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Формула, если интересно',
+      lead: ['Цена в системе = стоимость подрядчика ÷ (1 − максимальный СК − минимальная комиссия). Подставьте свои числа — посчитается по той же формуле, что и в калькуляторе.'],
+      demo: 'markup' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: '«Наш заработок» на верхней ступени — минимум, а не норма', d: 'Это худший для нас случай. По остальным ступеням заработок будет выше — на них и смотрите как на запас.' },
+        { t: 'Сумма комиссии и максимального СК должна быть меньше 100%', d: 'Иначе решения нет: калькулятор так и напишет вместо цифры.' },
+        { t: 'Комиссия считается от цены в системе', d: 'Не от стоимости подрядчика. Отсюда деление, а не умножение, — и именно поэтому «прикинуть в уме» обычно не получается.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Бюджет для планировщика удобно считать уже с надбавкой: в шаге «Цели» можно указать сумму, а НДС и комиссию системы он накрутит сам.'],
+      links: [
+        { t: 'Планировщик', d: 'подбор размещения под посчитанный бюджет' }
+      ],
+      cta: { open: true, demo: 'Посчитать на 500 000 ₽' } }
+  ]
+},
+
+/* ═════════════════════════════ карта-компаньон ════════════════════════ */
+map: {
+  title: 'Карта-компаньон',
+  letter: 'К',
+  slides: [
+    { kind: 'intro',
+      h: 'Проверить точку, не переключаясь между картами',
+      lead: [
+        'Вставляете координаты с платформы — попадаете в то же место. Клик по карте ставит пин и показывает его координаты, которые можно скопировать обратно.',
+        'Любую точку можно открыть в Яндексе, 2ГИС, Google или OSM — теми же координатами, без переписывания.'
+      ],
+      gain: [
+        'Три подложки: детальная, OSM и тёмная',
+        'Слой общественного транспорта и остановки с метро из OSM',
+        'Пин перетаскивается — удобно уточнять положение поверхности'
+      ] },
+
+    { kind: 'steps',
+      h: 'Как пользоваться',
+      items: [
+        { t: 'Найдите место', d: 'По адресу через поиск или вставьте координаты в формате <code>59.9386, 30.3141</code>.' },
+        { t: 'Поставьте пин', d: 'Клик по карте. Координаты пина видны внизу панели, его можно перетащить.' },
+        { t: 'Включите нужные слои', d: 'Остановки и метро подтягиваются для видимой области с зума 14 и выше.' },
+        { t: 'Сверьте с другой картой', d: 'Кнопки Яндекс / 2ГИС / Google / OSM откроют текущую точку в новой вкладке.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Как это выглядит',
+      lead: ['Вставьте координаты — соберутся те же ссылки, что делает инструмент. Их можно открыть прямо отсюда.'],
+      demo: 'mapLinks' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Остановки появляются не сразу', d: 'Только с зума 14+ и только в видимой области — данные подтягиваются под текущий экран, а не на весь город.' },
+        { t: 'Поиск идёт по OpenStreetMap', d: 'Названия торговых центров там бывают неточными. Для витрин и вывесок надёжнее сверить в 2ГИС кнопкой рядом.' },
+        { t: 'Порядок координат — широта, долгота', d: 'Если оказались в Африке или в океане, скорее всего, числа переставлены местами.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Если точек много, не проверяйте их по одной: подбор адресов сразу отдаст список с координатами, а планировщик покажет вокруг них доступные экраны.'],
+      links: [
+        { t: 'Подбор адресов', d: 'список объектов сети с координатами' },
+        { t: 'Планировщик', d: 'экраны вокруг ваших точек' }
+      ],
+      cta: { open: true } }
+  ]
+},
+
+/* ══════════════════════════ мониторинг кампаний ═══════════════════════ */
+monitoring: {
+  title: 'Мониторинг кампаний',
+  letter: 'М',
+  ext: true,
+  slides: [
+    { kind: 'intro',
+      h: 'Кто отстаёт по бюджету и почему проигрывает аукцион',
+      lead: [
+        'Внешний сервис — откроется в новой вкладке и попросит логин. Внутри три раздела: <b>Кампании</b>, <b>Сервисный дашборд</b> и <b>Бюджеты и темпы</b>.',
+        'Главное, за чем сюда ходят: увидеть отстающие кампании до того, как об этом спросит клиент, и понять причину — мало инвентаря или низкая ставка.'
+      ],
+      gain: [
+        '«Бюджеты и темпы» — таблица с недобором до плана и рекомендуемыми лимитами',
+        'Аукционная аналитика показывает причины проигрышей и рекомендуемую ставку',
+        'Выгрузка в Excel: показы, проигрыши, поверхности, операторы'
+      ] },
+
+    { kind: 'steps',
+      h: 'Утренний обход',
+      items: [
+        { t: 'Начните с «Бюджеты и темпы»', d: 'Сразу видно, кто отстаёт: статус, недобор до плана на сейчас и рекомендуемые суточный с часовым лимитом.' },
+        { t: 'Откройте отстающую кампанию', d: 'В карточке — статус, даты, фотоотчёты и аукционная аналитика в одном экране. Блоки можно перетаскивать, порядок запоминается.' },
+        { t: 'Посмотрите причины проигрышей', d: 'Если основная причина — проигрыш по ставке, там же будет рекомендуемая новая ставка. Если проблема на стороне оператора — поднимать ставку бессмысленно.' },
+        { t: 'Сравните лимиты', d: 'Рекомендуемый лимит показывается рядом с установленным: видно, поднимать его или снижать.' },
+        { t: 'Для отчётности — «Сервисный дашборд»', d: 'Период до 31 дня, фильтры по городам, операторам, брендам и рекламодателям; показы, OTS, средняя стоимость выхода и план на месяц.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Как читать темп',
+      lead: ['Темп — это отношение потраченного к плану на текущий момент. Ниже тот же расчёт с теми же порогами, что в сервисе: подставьте бюджет, срок и факт.'],
+      demo: 'pace' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Утреннее «отстаём» — часто не проблема', d: 'Статус считается от плана на текущий момент по прошедшим эфирным часам, а не от плана на весь день. Но в начале дня статистики мало, и цифра ещё пляшет.' },
+        { t: 'Звёздочка у значения — повод не верить цифре', d: 'Так помечают случай, когда не удалось загрузить расписание кампании. Кампания без ограничений по времени считается корректно и не помечается.' },
+        { t: 'Период в сервисном дашборде — не больше 31 дня', d: 'Более длинный интервал сервис не посчитает. Для квартала придётся собрать по месяцам.' },
+        { t: 'Рекомендуемый лимит делится на эфирные дни', d: 'Не на календарные. Если кампания стоит по выходным, суточный лимит будет выше, чем «остаток ÷ дни до конца», — и это правильно.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Если кампания отстаёт из-за нехватки инвентаря, а не из-за ставки, — это уже задача планировщика: добрать экраны.'],
+      links: [
+        { t: 'Планировщик', d: 'добрать инвентарь под отстающую кампанию' },
+        { t: 'Карта-компаньон', d: 'проверить, что за поверхность стоит по адресу' }
+      ],
+      cta: { open: true } }
+  ]
+},
+
+/* ════════════════════════════════ планировщик ═════════════════════════ */
+planner: {
+  title: 'Планировщик',
+  letter: 'П',
+  ext: true,
+  slides: [
+    { kind: 'intro',
+      h: 'Медиаплан по региону за несколько вопросов',
+      lead: [
+        'Внешний сервис — откроется в новой вкладке. Внутри визард из четырёх шагов: <b>География</b>, <b>Период</b>, <b>Цели</b>, <b>Настройки</b>. На выходе — программа размещения, список GID и план в .xlsx.',
+        'Считать охват по выгрузкам операторов руками не нужно: сервис знает доступный инвентарь и сам разложит бюджет по регионам.'
+      ],
+      gain: [
+        'Бюджет можно задать суммой, целью по OTS или попросить подсказать оптимальный',
+        'НДС и комиссию системы накрутит сам',
+        'Выгрузки: GIDы, план, POI, фото экранов'
+      ] },
+
+    { kind: 'demo',
+      h: 'Четыре шага визарда',
+      lead: ['Нажмите на шаг — покажу, что в нём заполняется. Это то же, что вы увидите в сервисе.'],
+      demo: 'plannerSteps' },
+
+    { kind: 'steps',
+      h: 'Где что решается',
+      items: [
+        { t: 'Регион — не то же самое, что город', d: 'Крупные города идут отдельно, Московская и Ленинградская области — областью целиком. Список городов можно загрузить файлом.' },
+        { t: 'Как собираем программу', d: 'Равномерно по региону, рядом с POI, рядом с адресом или вдоль маршрута. Плюс можно нарисовать полигон — в расчёт попадут только экраны внутри зоны.' },
+        { t: 'Стратегия подбора', d: 'Максимальный охват берёт больше экранов, максимальная частота — меньше экранов с большим числом выходов. Баланс между ними.' },
+        { t: 'Забирайте выгрузки', d: '«Скачать GIDы» — для загрузки в систему, «Скачать план» — для клиента, «Скачать POI» — точки, вокруг которых собирали.' }
+      ] },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Фильтр по GRP режет инвентарь', d: 'Не все экраны передают GRP. Включив фильтр, вы получите только те, у которых он заполнен, — остальные выпадут молча.' },
+        { t: 'Даты влияют на доступный инвентарь', d: 'Часть поверхностей занята. Меняя период, вы меняете и пул — сравнивать варианты имеет смысл на одних датах.' },
+        { t: 'Полигон и режим подбора складываются', d: 'Если нарисована зона и выбран режим «рядом с адресом», останутся только экраны, попавшие в оба условия. Пустой результат обычно про это.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Связка с нашими инструментами',
+      lead: ['Список адресов из подбора адресов принимается напрямую: шаг «Настройки» → «Как собираем программу» → «Рядом с адресом» → «↓ Импортировать список» → файл .xlsx. Радиус вокруг точек задаётся там же, в метрах.'],
+      links: [
+        { t: 'Подбор адресов', d: 'соберёт точки сети, которые вы импортируете сюда' },
+        { t: 'Сортировка креативов', d: 'подберёт крео под размеры подобранных экранов' },
+        { t: 'Сбор технических требований', d: 'длительности роликов по получившейся адресной программе' }
+      ],
+      cta: { open: true } }
+  ]
+}
+
+};
+
+root.OmniGuideData = { SAVINGS: SAVINGS, GUIDES: GUIDES };
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* ============================================================================
+   Движок гайдов: рисует слайды из lib/guide-data.js и оживляет мини-демо.
+
+   Гайд открывается в iframe внутри панели: какой инструмент показывать,
+   говорит #tool=<id> в адресе. Наружу общаемся через postMessage — открыть
+   инструмент, открыть его с демо-данными, закрыть, отметить как прочитанный.
+   Хранение прочитанных на стороне панели: у неё один localStorage на всё,
+   а iframe с blob:-адресом до него дотягивается не везде.
+
+   Мини-демо считают НАСТОЯЩИМ кодом инструментов (TTCore.lookupDuration,
+   MergeCore.mergeTables, OmniLib.reduceRatio) — иначе гайд рано или поздно
+   начнёт врать про поведение, которое рядом изменили.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const D = root.OmniGuideData;
+const L = root.OmniLib;
+const T = root.TTCore;
+const M = root.MergeCore;
+
+const $ = function (id) { return document.getElementById(id); };
+
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function post(msg) {
+  try { root.parent.postMessage({ omniGuide: msg }, '*'); } catch (e) { /* нет родителя */ }
+}
+
+/* ─────────────────────────────── состояние ─────────────────────────────── */
+
+function toolFromHash() {
+  const m = /(?:^|[#&])tool=([A-Za-z0-9_-]+)/.exec(root.location.hash || '');
+  return m ? m[1] : null;
+}
+
+const toolId = toolFromHash();
+const guide = toolId ? D.GUIDES[toolId] : null;
+const savings = toolId ? D.SAVINGS[toolId] : null;
+
+let idx = 0;
+const visited = new Set([0]);
+
+/* ─────────────────────────── отрисовка слайдов ─────────────────────────── */
+
+function introHtml(s) {
+  let h = '<div class="g-kick">зачем это</div>' +
+          '<div class="g-h2">' + esc(s.h) + '</div>';
+  for (const p of s.lead) h += '<div class="g-lead">' + p + '</div>';
+
+  if (savings) {
+    h += '<div class="g-cmp">' +
+      '<div class="g-cmp-box"><div class="g-cmp-k">руками</div>' +
+        '<div class="g-cmp-v">' + esc(savings.manual) + '</div>' +
+        '<div class="g-cmp-d">' + esc(savings.manualNote) + '</div></div>' +
+      '<div class="g-arrow">→</div>' +
+      '<div class="g-cmp-box now"><div class="g-cmp-k">здесь</div>' +
+        '<div class="g-cmp-v">' + esc(savings.tool) + '</div>' +
+        '<div class="g-cmp-d">' + esc(savings.toolNote) + '</div></div>' +
+      '</div>' +
+      '<div class="g-note-est">Объём для сравнения: ' + esc(savings.on) +
+      '. Время «руками» — оценка, а не замер.</div>';
+  }
+
+  if (s.gain && s.gain.length) {
+    h += '<div class="g-list">';
+    for (const g of s.gain) h += '<div class="g-li"><span class="m">✓</span><span>' + g + '</span></div>';
+    h += '</div>';
+  }
+  return h;
+}
+
+function stepsHtml(s) {
+  let h = '<div class="g-kick">по шагам</div><div class="g-h2">' + esc(s.h) + '</div>';
+  if (s.lead) for (const p of s.lead) h += '<div class="g-lead">' + p + '</div>';
+  h += '<div class="g-steps">';
+  s.items.forEach(function (it, i) {
+    h += '<div class="g-step"><div class="g-step-n">' + (i + 1) + '</div><div>' +
+         '<div class="g-step-t">' + it.t + '</div>' +
+         '<div class="g-step-d">' + it.d + '</div></div></div>';
+  });
+  return h + '</div>';
+}
+
+function pitsHtml(s) {
+  let h = '<div class="g-kick">частые ошибки</div><div class="g-h2">' + esc(s.h) + '</div>' +
+          '<div class="g-pits">';
+  for (const it of s.items) {
+    h += '<div class="g-pit"><div class="g-pit-t">' + it.t + '</div>' +
+         '<div class="g-pit-d">' + it.d + '</div></div>';
+  }
+  return h + '</div>';
+}
+
+function demoHtml(s) {
+  let h = '<div class="g-kick">попробуйте сами</div><div class="g-h2">' + esc(s.h) + '</div>';
+  if (s.lead) for (const p of s.lead) h += '<div class="g-lead">' + p + '</div>';
+  h += '<div class="g-demo"><div class="g-demo-head"><span class="live"></span>' +
+       'живой пример</div><div class="g-demo-body" id="demoHost"></div></div>';
+  if (s.hint) h += '<div class="g-demo-hint">' + s.hint + '</div>';
+  return h;
+}
+
+function finishHtml(s) {
+  let h = '<div class="g-kick">и напоследок</div><div class="g-h2">' + esc(s.h) + '</div>';
+  if (s.lead) for (const p of s.lead) h += '<div class="g-lead">' + p + '</div>';
+  if (s.links && s.links.length) {
+    h += '<div class="g-steps">';
+    for (const it of s.links) {
+      h += '<div class="g-step"><div class="g-step-n">→</div><div>' +
+           '<div class="g-step-t">' + esc(it.t) + '</div>' +
+           '<div class="g-step-d">' + esc(it.d) + '</div></div></div>';
+    }
+    h += '</div>';
+  }
+  return h;
+}
+
+const RENDER = { intro: introHtml, steps: stepsHtml, pits: pitsHtml, demo: demoHtml, finish: finishHtml };
+
+function render() {
+  const slides = guide.slides;
+  const s = slides[idx];
+
+  $('gBody').innerHTML = '<div class="g-slide">' + RENDER[s.kind](s) + '</div>';
+  if (s.kind === 'demo' && DEMOS[s.demo]) DEMOS[s.demo]($('demoHost'));
+
+  $('gCount').textContent = 'шаг ' + (idx + 1) + ' из ' + slides.length;
+
+  $('gProg').innerHTML = slides.map(function (_, i) {
+    return '<button data-i="' + i + '" class="' +
+      (i === idx ? 'on' : (visited.has(i) ? 'seen' : '')) + '" title="' +
+      esc(slides[i].h) + '"></button>';
+  }).join('');
+  [...$('gProg').children].forEach(function (b) {
+    b.addEventListener('click', function () { go(parseInt(b.dataset.i, 10)); });
+  });
+
+  const last = idx === slides.length - 1;
+  const cta = last ? (s.cta || {}) : null;
+  let nav = '<button class="g-btn-sm" id="gPrev"' + (idx === 0 ? ' disabled' : '') + '>← Назад</button>';
+  if (last) {
+    nav += '<span class="sp"></span>';
+    if (cta.demo) nav += '<button class="g-btn-sm" id="gDemoRun">' + esc(cta.demo) + '</button>';
+    nav += '<button class="g-btn-pri" id="gOpen">' +
+           (guide.ext ? 'Открыть сервис ↗' : 'Открыть инструмент →') + '</button>';
+  } else {
+    nav += '<span class="g-keyhint">стрелки ← → тоже работают</span><span class="sp"></span>' +
+           '<button class="g-btn-pri" id="gNext">Далее →</button>';
+  }
+  $('gNav').innerHTML = nav;
+
+  if ($('gPrev')) $('gPrev').addEventListener('click', function () { go(idx - 1); });
+  if ($('gNext')) $('gNext').addEventListener('click', function () { go(idx + 1); });
+  if ($('gOpen')) $('gOpen').addEventListener('click', function () {
+    post({ action: 'open', tool: toolId });
+  });
+  if ($('gDemoRun')) $('gDemoRun').addEventListener('click', function () {
+    post({ action: 'open', tool: toolId, demo: true });
+  });
+
+  $('gBody').scrollTop = 0;
+}
+
+function go(i) {
+  if (i < 0 || i >= guide.slides.length || i === idx) return;
+  idx = i;
+  visited.add(i);
+  render();
+}
+
+/* ═══════════════════════════════ мини-демо ══════════════════════════════ */
+
+const DEMOS = {};
+
+/* ── ТТ: настоящий поиск длительности по справочнику ── */
+DEMOS.ttDuration = function (host) {
+  const data = root.TTData;
+  const ops = [...new Set(data.INVENTORY_DURATIONS.map(function (r) { return r[0]; }))];
+  // Russ Outdoor в таблице связок нет — он обрабатывается отдельным правилом,
+  // но в демо без него не показать самое интересное.
+  if (!ops.some(function (o) { return L.normName(o) === 'russ outdoor'; })) ops.push('Russ Outdoor');
+  ops.sort(function (a, b) { return a.localeCompare(b, 'ru'); });
+
+  const fmts = [...new Set(
+    data.INVENTORY_DURATIONS.map(function (r) { return r[1]; })
+      .concat(data.RUSS_10SEC_FORMATS)
+  )].sort();
+
+  host.innerHTML =
+    '<div class="g-demo-row">' +
+      '<div class="field"><label>Оператор</label><select id="dOp">' +
+        ops.map(function (o) {
+          return '<option' + (o === 'Russ Outdoor' ? ' selected' : '') + '>' + esc(o) + '</option>';
+        }).join('') +
+      '</select></div>' +
+      '<div class="field"><label>Формат экрана</label><select id="dFmt">' +
+        fmts.map(function (f) {
+          return '<option' + (f === 'CITY_FORMAT' ? ' selected' : '') + '>' + esc(f) + '</option>';
+        }).join('') +
+      '</select></div>' +
+    '</div>' +
+    '<div class="g-demo-out" id="dOut"></div>';
+
+  function rule(op, fmt) {
+    const n = L.normName(op);
+    if (data.RUSS_OPERATORS.indexOf(n) >= 0) {
+      return data.RUSS_10SEC_FORMATS.indexOf(fmt) >= 0
+        ? 'правило Russ Outdoor: CITY_FORMAT и PVZ_SCREEN — 10 секунд'
+        : 'правило Russ Outdoor: остальные форматы — 5 секунд';
+    }
+    if (data.MAER_OUTDOOR_OPERATORS.indexOf(n) >= 0) {
+      return fmt === 'MEDIAFACADE'
+        ? 'правило MAER (Outdoor): медиафасад — 10 секунд'
+        : 'правило MAER (Outdoor): остальные форматы — 5 секунд';
+    }
+    if (Object.prototype.hasOwnProperty.call(data.FLAT_DURATIONS, n)) {
+      return 'у этого оператора одна длительность на все форматы';
+    }
+    return 'из справочника связок «оператор + формат»';
+  }
+
+  function upd() {
+    const op = $('dOp').value, fmt = $('dFmt').value;
+    const dur = T.lookupDuration(op, fmt);
+    $('dOut').innerHTML = dur === null
+      ? '<div class="g-out-none">длительности нет</div>' +
+        '<div class="g-out-k">Такой связки в справочнике нет. В отчёте строка будет с пустой ' +
+        'длительностью и попадёт во вкладку с ненайденными — это сигнал, что связку надо добавить.</div>'
+      : '<div class="g-out-big">' + dur + ' сек</div>' +
+        '<div class="g-out-k">' + esc(rule(op, fmt)) + '</div>';
+  }
+  $('dOp').addEventListener('change', upd);
+  $('dFmt').addEventListener('change', upd);
+  upd();
+};
+
+/* ── креативы: правило подбора под размер экрана ── */
+DEMOS.creativeMatch = function (host) {
+  const creatives = [
+    { name: 'kreo_16x9_hd.mp4', w: 1920, h: 1080 },
+    { name: 'kreo_16x9_big.mp4', w: 2560, h: 1440 },
+    { name: 'kreo_vertical.mp4', w: 1080, h: 1920 },
+    { name: 'kreo_square.mp4', w: 768, h: 768 }
+  ];
+  const screens = [
+    { t: 'МАЕР · 1280×720', op: 'MAER (Outdoor)', w: 1280, h: 720 },
+    { t: 'Russ Outdoor · 1920×1080', op: 'Russ Outdoor', w: 1920, h: 1080 },
+    { t: 'Russ Outdoor · 1280×720', op: 'Russ Outdoor', w: 1280, h: 720 },
+    { t: 'Оператор · 1080×1920', op: 'РА Прайм', w: 1080, h: 1920 },
+    { t: 'Оператор · 960×960', op: 'РА Прайм', w: 960, h: 960 }
+  ];
+
+  host.innerHTML =
+    '<div class="field" style="margin-bottom:12px"><label>Экран из адресной программы</label>' +
+      '<select id="dScr">' + screens.map(function (s, i) {
+        return '<option value="' + i + '">' + esc(s.t) + '</option>';
+      }).join('') + '</select></div>' +
+    '<div class="g-mini-cap">Что лежит в архиве</div>' +
+    '<div class="g-mini-wrap"><table class="g-mini">' +
+      '<thead><tr><th>Файл</th><th>Размер</th><th>Соотношение</th><th></th></tr></thead>' +
+      '<tbody id="dCre"></tbody></table></div>' +
+    '<div class="g-demo-out" id="dScrOut"></div>';
+
+  /* Правило один в один как в creatives-core: для Russ — точный размер,
+     остальным — то же соотношение сторон и размер не меньше экрана,
+     из подходящих берётся наименьший. */
+  function pick(scr) {
+    const russ = /russ/i.test(scr.op);
+    if (russ) {
+      const exact = creatives.filter(function (c) { return c.w === scr.w && c.h === scr.h; });
+      return { best: exact[0] || null, rule: 'Russ Outdoor — только точное совпадение размера' };
+    }
+    const tr = L.reduceRatio(scr.w, scr.h);
+    const fit = creatives.filter(function (c) {
+      const cr = L.reduceRatio(c.w, c.h);
+      return cr[0] === tr[0] && cr[1] === tr[1] && c.w >= scr.w && c.h >= scr.h;
+    });
+    const best = fit.length ? fit.reduce(function (a, b) {
+      return a.w * a.h <= b.w * b.h ? a : b;
+    }) : null;
+    return { best: best, rule: 'то же соотношение сторон и размер не меньше экрана' };
+  }
+
+  function upd() {
+    const scr = screens[parseInt($('dScr').value, 10)];
+    const res = pick(scr);
+    const tr = L.reduceRatio(scr.w, scr.h);
+
+    $('dCre').innerHTML = creatives.map(function (c) {
+      const r = L.reduceRatio(c.w, c.h);
+      const hit = res.best && res.best.name === c.name;
+      return '<tr class="' + (hit ? 'hit' : 'out') + '">' +
+        '<td>' + esc(c.name) + '</td>' +
+        '<td>' + c.w + '×' + c.h + '</td>' +
+        '<td>' + r[0] + ':' + r[1] + '</td>' +
+        '<td>' + (hit ? 'подходит' : '') + '</td></tr>';
+    }).join('');
+
+    if (res.best) {
+      const exact = res.best.w === scr.w && res.best.h === scr.h;
+      $('dScrOut').innerHTML =
+        '<div class="g-out-big">' + esc(res.best.name) + '</div>' +
+        '<div class="g-out-k">' + esc(res.rule) + '. Экран ' + scr.w + '×' + scr.h +
+        ' (' + tr[0] + ':' + tr[1] + '), креатив ' + res.best.w + '×' + res.best.h +
+        (exact ? ' — размер совпал точно.' : ' — с запасом, на экране уменьшится.') + '</div>';
+    } else {
+      $('dScrOut').innerHTML =
+        '<div class="g-out-none">под этот экран крео нет</div>' +
+        '<div class="g-out-k">' + esc(res.rule) + '. Экран попадёт в список незакрытых — ' +
+        'это и есть то, что нужно запросить у дизайна.</div>';
+    }
+  }
+  $('dScr').addEventListener('change', upd);
+  upd();
+};
+
+/* ── адреса: снятие дублей по координатам ── */
+DEMOS.addrDedupe = function (host) {
+  // Так справочник и отдаёт: один объект приходит по нескольким страницам и
+  // под слегка разными названиями, а координаты у него одни и те же.
+  const raw = [
+    { n: 'Пятёрочка', lat: 55.796100, lon: 49.106400 },
+    { n: 'Пятёрочка, магазин', lat: 55.796100, lon: 49.106400 },
+    { n: 'Пятёрочка', lat: 55.812300, lon: 49.121900 },
+    { n: 'Пятёрочка', lat: 55.774500, lon: 49.138200 },
+    { n: 'Пятёрочка (у дома)', lat: 55.774500, lon: 49.138200 },
+    { n: 'Пятёрочка', lat: 55.830700, lon: 49.061500 },
+    { n: 'Пятёрочка', lat: 55.830700, lon: 49.061500 }
+  ];
+
+  host.innerHTML =
+    '<div class="g-mini-wrap"><table class="g-mini">' +
+      '<thead><tr><th>Название</th><th>Широта</th><th>Долгота</th><th></th></tr></thead>' +
+      '<tbody id="dRaw"></tbody></table></div>' +
+    '<div class="btn-row" style="margin-top:12px">' +
+      '<button class="g-btn-sm" id="dDedup">Снять дубли</button>' +
+      '<button class="g-btn-sm" id="dReset" style="display:none">Показать как было</button>' +
+    '</div>' +
+    '<div class="g-demo-out" id="dRawOut"></div>';
+
+  function draw(dedup) {
+    const seen = new Set();
+    const marks = raw.map(function (r) {
+      const k = r.lat + ',' + r.lon;
+      const dup = seen.has(k);
+      seen.add(k);
+      return dup;
+    });
+    $('dRaw').innerHTML = raw.map(function (r, i) {
+      if (dedup && marks[i]) return '';
+      return '<tr class="' + (dedup ? 'hit' : (marks[i] ? 'out' : '')) + '">' +
+        '<td>' + esc(r.n) + '</td>' +
+        '<td>' + r.lat.toFixed(6) + '</td>' +
+        '<td>' + r.lon.toFixed(6) + '</td>' +
+        '<td>' + (!dedup && marks[i] ? 'та же точка' : '') + '</td></tr>';
+    }).join('');
+
+    const kept = marks.filter(function (m) { return !m; }).length;
+    $('dRawOut').innerHTML = dedup
+      ? '<div class="g-out-big">' + kept + '</div>' +
+        '<div class="g-out-k">Столько объектов попадёт в файл. Справочник отдал ' + raw.length +
+        ' записей — ' + (raw.length - kept) + ' из них описывают те же точки.</div>'
+      : '<div class="g-out-k">Справочник отдал ' + raw.length + ' записей. Совпадающие ' +
+        'координаты помечены — именно по ним инструмент и снимает дубли, а не по названию.</div>';
+
+    $('dDedup').style.display = dedup ? 'none' : '';
+    $('dReset').style.display = dedup ? '' : 'none';
+  }
+
+  $('dDedup').addEventListener('click', function () { draw(true); });
+  $('dReset').addEventListener('click', function () { draw(false); });
+  draw(false);
+};
+
+/* ── объединение: настоящая склейка по названиям столбцов ── */
+DEMOS.mergeDemo = function (host) {
+  const tables = [
+    { name: 'Казань.xlsx', header: ['Название', 'Широта', 'Долгота'],
+      data: [['Пятёрочка', 55.7961, 49.1064], ['Магнит', 55.8123, 49.1219]] },
+    // столбцы в другом порядке — по названию это не мешает
+    { name: 'Уфа.xlsx', header: ['Широта', 'Долгота', 'Название'],
+      data: [[54.7351, 55.9587, 'Пятёрочка'], [54.7423, 55.9721, 'Магнит']] },
+    // свой столбец — уедет в конец шапки
+    { name: 'Самара.xlsx', header: ['Название', 'Широта', 'Долгота', 'Комментарий'],
+      data: [['Пятёрочка', 53.1959, 50.1002, 'проверить вывеску']] }
+  ];
+
+  host.innerHTML =
+    '<div class="g-two" id="dSrc"></div>' +
+    '<div class="btn-row" style="margin-top:12px">' +
+      '<button class="g-btn-sm" id="dMerge">Объединить</button>' +
+    '</div>' +
+    '<div class="g-demo-out" id="dMergeOut"></div>';
+
+  $('dSrc').innerHTML = tables.map(function (t) {
+    return '<div><div class="g-mini-cap">' + esc(t.name) + '</div>' +
+      '<div class="g-mini-wrap"><table class="g-mini"><thead><tr>' +
+      t.header.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      t.data.map(function (r) {
+        return '<tr>' + r.map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>';
+      }).join('') +
+      '</tbody></table></div></div>';
+  }).join('');
+
+  $('dMerge').addEventListener('click', function () {
+    const merged = M.mergeTables(tables, { matchBy: 'name', addSource: true });
+    const header = merged.header.concat(['Файл-источник']);
+    $('dMergeOut').innerHTML =
+      '<div class="g-mini-cap">Объединено.xlsx</div>' +
+      '<div class="g-mini-wrap"><table class="g-mini"><thead><tr>' +
+      header.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      merged.rows.map(function (r) {
+        return '<tr>' + r.values.concat([r.source]).map(function (v) {
+          return '<td>' + esc(v) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') +
+      '</tbody></table></div>' +
+      '<div class="g-out-k" style="margin-top:10px">Строк: ' + merged.rows.length +
+      '. Столбцы легли по названиям, хотя в «Уфа.xlsx» они идут в другом порядке. ' +
+      '«Комментарий» был только в одном файле — он добавился в конец шапки, ' +
+      'у остальных строк там пусто.</div>';
+    $('dMerge').disabled = true;
+  });
+};
+
+/* ── калькулятор: та же формула, что в инструменте ── */
+DEMOS.markup = function (host) {
+  const TIERS = [10, 12, 14, 16, 20];
+
+  host.innerHTML =
+    '<div class="g-demo-row">' +
+      '<div class="field"><label>Стоимость подрядчика, ₽</label>' +
+        '<input type="number" id="dCon" value="500000" min="0" step="10000"></div>' +
+      '<div class="field"><label>Мин. комиссия агентства, %</label>' +
+        '<input type="number" id="dComm" value="10" min="0" step="0.5"></div>' +
+    '</div>' +
+    '<div class="g-demo-out" id="dMarkOut"></div>';
+
+  function money(n) {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency', currency: 'RUB', maximumFractionDigits: 0
+    }).format(n);
+  }
+
+  function upd() {
+    const con = parseFloat($('dCon').value) || 0;
+    const comm = parseFloat($('dComm').value);
+    const minComm = isNaN(comm) || comm < 0 ? 10 : comm;
+    const maxSK = Math.max.apply(null, TIERS) / 100;
+    const denom = 1 - maxSK - minComm / 100;
+
+    if (con <= 0) {
+      $('dMarkOut').innerHTML = '<div class="g-out-k">Введите стоимость подрядчика.</div>';
+      return;
+    }
+    if (denom <= 0) {
+      $('dMarkOut').innerHTML = '<div class="g-out-none">решения нет</div>' +
+        '<div class="g-out-k">Минимальная комиссия и максимальный СК вместе дают 100% и больше — ' +
+        'делить не на что. Калькулятор в этом случае тоже показывает прочерк.</div>';
+      return;
+    }
+
+    const list = con / denom;
+    const markup = (list / con - 1) * 100;
+    const worst = list * (1 - maxSK) - con;                       // при максимальном СК
+    const best = list * (1 - Math.min.apply(null, TIERS) / 100) - con;  // при минимальном
+
+    $('dMarkOut').innerHTML =
+      '<div class="g-out-big">' + markup.toFixed(1) + '%</div>' +
+      '<div class="g-out-k">Цена в системе: <b>' + money(list) + '</b>. ' +
+      'При максимальном СК ' + Math.max.apply(null, TIERS) + '% заработаем ' + money(worst) +
+      ', при минимальном ' + Math.min.apply(null, TIERS) + '% — ' + money(best) +
+      '. Ступени взяты по умолчанию, в калькуляторе их можно поправить.</div>';
+  }
+  $('dCon').addEventListener('input', upd);
+  $('dComm').addEventListener('input', upd);
+  upd();
+};
+
+/* ── карта: сборка ссылок по координатам ── */
+DEMOS.mapLinks = function (host) {
+  host.innerHTML =
+    '<div class="field"><label>Координаты точки</label>' +
+      '<input type="text" id="dCoord" value="55.796100, 49.106400" spellcheck="false"></div>' +
+    '<div class="g-demo-out" id="dCoordOut"></div>';
+
+  function upd() {
+    const m = /(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)/.exec($('dCoord').value || '');
+    if (!m) {
+      $('dCoordOut').innerHTML = '<div class="g-out-k">Ожидаются два числа: сначала широта, ' +
+        'потом долгота — например <code>55.7961, 49.1064</code>.</div>';
+      return;
+    }
+    const lat = m[1].replace(',', '.'), lon = m[2].replace(',', '.');
+    const z = 16;
+    const links = [
+      ['Яндекс', 'https://yandex.ru/maps/?ll=' + lon + ',' + lat + '&z=' + z + '&pt=' + lon + ',' + lat],
+      ['2ГИС', 'https://2gis.ru/geo/' + lon + ',' + lat],
+      ['Google', 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon],
+      ['OSM', 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon + '#map=' + z + '/' + lat + '/' + lon]
+    ];
+    $('dCoordOut').innerHTML =
+      '<div class="g-list">' + links.map(function (l) {
+        return '<div class="g-li"><span class="m">→</span><span><a href="' + esc(l[1]) +
+          '" target="_blank" rel="noopener">' + esc(l[0]) + '</a> ' +
+          '<span style="color:var(--dim)">· та же точка</span></span></div>';
+      }).join('') + '</div>' +
+      '<div class="g-out-k" style="margin-top:10px">Обратите внимание: у Яндекса и 2ГИС ' +
+      'в адресе сначала идёт долгота, у Google и OSM — широта. Инструмент это учитывает, ' +
+      'а при ручной копипасте так и уезжают в другой город.</div>';
+  }
+  $('dCoord').addEventListener('input', upd);
+  upd();
+};
+
+/* ── мониторинг: расчёт темпа с настоящими порогами сервиса ── */
+DEMOS.pace = function (host) {
+  host.innerHTML =
+    '<div class="g-demo-row">' +
+      '<div class="field"><label>Бюджет, ₽</label>' +
+        '<input type="number" id="pB" value="900000" min="0" step="50000"></div>' +
+      '<div class="field"><label>Дней всего</label>' +
+        '<input type="number" id="pT" value="30" min="1" step="1"></div>' +
+    '</div>' +
+    '<div class="g-demo-row" style="margin-top:10px">' +
+      '<div class="field"><label>Дней прошло</label>' +
+        '<input type="number" id="pP" value="10" min="0" step="1"></div>' +
+      '<div class="field"><label>Потрачено, ₽</label>' +
+        '<input type="number" id="pS" value="180000" min="0" step="10000"></div>' +
+    '</div>' +
+    '<div class="g-demo-out" id="pOut"></div>';
+
+  function money(n) {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency', currency: 'RUB', maximumFractionDigits: 0
+    }).format(n);
+  }
+
+  function upd() {
+    const budget = parseFloat($('pB').value) || 0;
+    const total = Math.max(1, parseInt($('pT').value, 10) || 1);
+    const passed = Math.min(total, Math.max(0, parseInt($('pP').value, 10) || 0));
+    const spent = parseFloat($('pS').value) || 0;
+
+    const plan = budget / total * passed;
+    const pace = plan > 0 ? spent / plan : 0;
+    const left = Math.max(0, total - passed + 1);
+    const remaining = Math.max(0, budget - spent);
+    const daily = left > 0 ? remaining / left : 0;
+
+    // Плана ещё нет — сравнивать не с чем. Сервис в этом случае тоже не строит
+    // алерты: в первые полчаса эфира статистика ещё ни о чём не говорит.
+    if (plan <= 0) {
+      $('pOut').innerHTML = '<div class="g-out-k">Плана на этот момент ещё нет — ' +
+        'кампания не начала вещать, сравнивать не с чем. Поставьте «дней прошло» ' +
+        'больше нуля.</div>';
+      return;
+    }
+
+    // Пороги — как в сервисе: <70% красный, <95% жёлтый, дальше зелёный.
+    const label = pace < 0.70 ? 'Отстаём' : (pace < 0.95 ? 'Небольшое отставание' : 'В графике');
+    const color = pace < 0.70 ? 'var(--err-text)' : (pace < 0.95 ? 'var(--warn-text)' : 'var(--ok-text)');
+
+    $('pOut').innerHTML =
+      '<div class="g-out-big" style="-webkit-text-fill-color:' + color +
+        ';background-image:none;color:' + color + '">' + Math.round(pace * 100) + '% · ' + label + '</div>' +
+      '<div class="g-out-k">План к этому дню: <b>' + money(plan) + '</b>, потрачено ' + money(spent) +
+      '. Недобор: <b>' + money(Math.max(0, plan - spent)) + '</b>. ' +
+      'Рекомендуемый суточный лимит на остаток: <b>' + money(daily) + '</b>.</div>' +
+      '<div class="g-demo-hint">В сервисе тот же расчёт, но точнее: план считается по ' +
+      'прошедшим эфирным часам, а лимит делится на дни, когда кампания действительно ' +
+      'вещает. Поэтому у кампании с расписанием цифры будут отличаться от этой прикидки.</div>';
+  }
+  ['pB', 'pT', 'pP', 'pS'].forEach(function (id) {
+    $(id).addEventListener('input', upd);
+  });
+  upd();
+};
+
+/* ── планировщик: что заполняется на каждом шаге ── */
+DEMOS.plannerSteps = function (host) {
+  const steps = [
+    { t: '1. География', items: [
+        'Регион: крупные города отдельно, МО и ЛО — областью целиком',
+        'Список городов можно загрузить файлом (.xlsx, .csv, .txt)',
+        'Тут же видно объём доступного инвентаря'
+      ] },
+    { t: '2. Период', items: [
+        'Даты начала и окончания',
+        'Расписание: весь день 07:00–22:00, часы пик или свой график',
+        'Свой график задаётся по дням недели'
+      ] },
+    { t: '3. Цели', items: [
+        'Есть бюджет — распределит сумму по регионам',
+        'Есть цель по OTS — подберёт экраны и бюджет под охват',
+        'Подскажите оптимальный — соберёт адреску под адекватный охват региона',
+        'НДС и комиссию системы можно включить тут же'
+      ] },
+    { t: '4. Настройки', items: [
+        'Форматы: все, макс. охват, улицы, indoor',
+        'Как собираем: равномерно, рядом с POI, рядом с адресом, вдоль маршрута',
+        'Зона на карте — полигон, вне его экраны не попадут',
+        'Операторы, фильтр по GRP, режим ставки: минимальная или рекомендованная'
+      ] }
+  ];
+
+  host.innerHTML =
+    '<div class="g-chips" id="pcChips">' + steps.map(function (s, i) {
+      return '<button class="g-chip' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' +
+        esc(s.t) + '</button>';
+    }).join('') + '</div>' +
+    '<div class="g-demo-out" id="pcOut"></div>';
+
+  function draw(i) {
+    [...$('pcChips').children].forEach(function (b, j) {
+      b.classList.toggle('on', i === j);
+    });
+    $('pcOut').innerHTML = '<div class="g-list">' + steps[i].items.map(function (t) {
+      return '<div class="g-li"><span class="m">·</span><span>' + esc(t) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  [...$('pcChips').children].forEach(function (b) {
+    b.addEventListener('click', function () { draw(parseInt(b.dataset.i, 10)); });
+  });
+  draw(0);
+};
+
+/* ════════════════════════════════ запуск ════════════════════════════════ */
+
+if (!guide) {
+  document.body.innerHTML =
+    '<div class="g-card"><div class="note err" style="margin-top:24px">' +
+    'Не понимаю, гайд какого инструмента открывать: в адресе нет <code>#tool=…</code>.' +
+    '</div></div>';
+} else {
+  $('gIcon').textContent = guide.letter || '?';
+  if (guide.ext) $('gIcon').classList.add('ext');
+  $('gTitle').textContent = guide.title;
+  $('gSub').textContent = guide.ext
+    ? 'внешний сервис · как это работает'
+    : 'как это работает';
+  document.title = guide.title + ' — гайд';
+
+  render();
+  post({ action: 'seen', tool: toolId });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') go(idx + 1);
+    else if (e.key === 'ArrowLeft') go(idx - 1);
+    else if (e.key === 'Escape') post({ action: 'close' });
+    else return;
+    e.preventDefault();
+  });
+}
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+</body>
+</html>

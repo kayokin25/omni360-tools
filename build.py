@@ -40,6 +40,9 @@ NEW_TOOLS = [
     ('mergeTool',     'merge.html'),
     ('omnibuyTool',   'omnibuy.html'),
     ('mapTool',       'map.html'),
+    # Гайды — такая же страница в iframe, только вместо инструмента показывает
+    # рассказ о нём. Какой именно — задаёт #tool=<id> в адресе.
+    ('guideTool',     'guide.html'),
 ]
 
 INJECT_RE = re.compile(r'/\*__INJECT:([A-Za-z0-9_.\-]+)__\*/')
@@ -125,6 +128,7 @@ UUIDS = {
     'creativesTool': '9b2e7c31-5f4a-4c68-8d2b-3e7f1a9c4b52',
     'addressesTool': 'a3d5f842-6e1b-4d79-9c3e-4f8a2b6d5c63',
     'mergeTool':     'b7e419d6-8c25-4a3f-91d4-5a6c7e8b9f70',
+    'guideTool':     'c8f52ae3-9d16-4b48-82e5-6b7d8fa9c081',
 }
 
 # uuid ресурсов, которые были в исходной панели (калькулятор, карта, react, рантайм).

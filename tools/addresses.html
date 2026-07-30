@@ -556,6 +556,30 @@ $('histMerge').addEventListener('click', function () {
 
 renderHistory();
 
+
+/* Плашка про демо-данные. Через log() нельзя: обработчик запуска очищает лог,
+   и пояснение исчезало ровно в тот момент, когда становилось нужным. */
+function demoNote(html) {
+  const el = document.createElement('div');
+  el.className = 'note info';
+  el.innerHTML = html;
+  const sub = document.querySelector('.subtitle');
+  sub.parentNode.insertBefore(el, sub.nextSibling);
+}
+
+/* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
+   Запрос настоящий: инструмент реально сходит в справочник 2ГИС. Лимит
+   небольшой, чтобы демо отвечало за секунду. */
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  $('query').value = 'Пятёрочка';
+  $('city').value = 'Казань';
+  $('maxResults').value = 60;
+  $('grid').value = '0';
+  demoNote('<b>Демо-запрос.</b> Ищем «Пятёрочка» в Казани, до 60 объектов. ' +
+    'Запрос настоящий — это тот же справочник 2ГИС, что и в работе. Меняйте поля и жмите «Искать».');
+  $('go').click();
+}
+
 })();
 </script>
 </body>

@@ -2,9 +2,12 @@
 __pycache__/
 *.py[cod]
 
-# вывод тестов (lib/test_*.mjs, lib/diff_*.py)
+# вывод тестов (lib/test_*.mjs, lib/diff_*.py) — тесты пишут рядом с местом запуска,
+# поэтому ловим и корень репозитория тоже
 lib/out_*.xlsx
 lib/out_*.zip
+out_*.xlsx
+out_*.zip
 lib/py_ref/
 lib/ya.json
 
