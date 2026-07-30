@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Карта-компаньон — проверка инвентаря</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel-2:#1f232c; --line:#2a2f3a;
+    --txt:#e6e9ef; --muted:#8b93a2; --accent:#4f8cff; --accent-2:#22c55e;
+    --warn:#f59e0b; --danger:#ef4444; --radius:10px;
+    --shadow:0 8px 30px rgba(0,0,0,.45);
+    --stop-ring:rgba(255,255,255,.25);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  /* Светлая тема: панель и поля перекрашиваются, подложка карты своя —
+     по умолчанию «Детальная», она и так светлая. */
+  :root[data-theme="light"]{
+    --bg:#eef2f7; --panel:#ffffff; --panel-2:#f1f5f9; --line:#dbe3ec;
+    --txt:#0f172a; --muted:#64748b; --accent:#0284c7; --accent-2:#15803d;
+    --warn:#b45309; --danger:#b91c1c;
+    --shadow:0 8px 30px rgba(15,23,42,.18);
+    --stop-ring:rgba(15,23,42,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt)}
+  #map{position:absolute;inset:0;z-index:1}
+
+  .panel{
+    position:absolute;top:12px;left:12px;z-index:1000;width:320px;max-width:calc(100vw - 24px);
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .panel header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);
+  }
+  .panel header h1{margin:0;font-size:13px;font-weight:600;letter-spacing:.2px}
+  .panel header .v{font-size:10px;color:var(--muted)}
+  .body{padding:12px;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 90px);overflow:auto}
+
+  .group{display:flex;flex-direction:column;gap:6px}
+  .label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+
+  .search{display:flex;gap:6px}
+  input[type=text]{
+    flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);color:var(--txt);
+    padding:8px 10px;border-radius:8px;font-size:13px;outline:none;
+  }
+  input[type=text]:focus{border-color:var(--accent)}
+  button{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--txt);
+    padding:8px 10px;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap;
+  }
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.icon{padding:8px 11px}
+
+  .results{display:flex;flex-direction:column;gap:2px;max-height:180px;overflow:auto}
+  .results .r{padding:7px 9px;border-radius:7px;font-size:12px;cursor:pointer;line-height:1.35;border:1px solid transparent}
+  .results .r:hover{background:var(--panel-2);border-color:var(--line)}
+  .results .r .n{color:var(--txt)} .results .r .a{color:var(--muted);font-size:11px}
+
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{flex:1;border:none;border-radius:0;border-right:1px solid var(--line);font-size:11px;padding:7px 4px}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--accent);color:#fff}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+  .switch{position:relative;width:38px;height:21px;flex:none}
+  .switch input{display:none}
+  .switch span{position:absolute;inset:0;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;transition:.15s}
+  .switch span::after{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:.15s}
+  .switch input:checked + span{background:var(--accent);border-color:var(--accent)}
+  .switch input:checked + span::after{transform:translateX(17px);background:#fff}
+
+  .links{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .links button{display:flex;align-items:center;gap:6px;justify-content:center}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+  .readout{font-size:11px;color:var(--muted);line-height:1.5}
+  .readout b{color:var(--txt);font-variant-numeric:tabular-nums}
+  .hint{font-size:11px;color:var(--muted);line-height:1.45}
+  .count{font-size:11px;color:var(--accent-2)}
+  .stop-kind{color:var(--muted)}
+
+  /* small stop markers */
+  .stopdot{border-radius:50%;border:1.5px solid var(--bg);box-shadow:0 0 0 1px var(--stop-ring)}
+  .leaflet-popup-content{font-size:12px;line-height:1.4}
+  .leaflet-control-attribution{font-size:9px}
+
+  @media (max-width:520px){ .panel{width:calc(100vw - 24px)} }
+</style>
+<script>
+/* Тема инструмента.
+
+   Инструмент открывается либо внутри панели (в iframe), либо отдельной
+   страницей. Поэтому тему берём по порядку:
+     1. #theme=... в адресе — так панель задаёт тему сразу, без мигания;
+     2. сохранённая в localStorage — для отдельной страницы;
+     3. системная настройка.
+
+   Панель при переключении присылает postMessage — применяем на лету, чтобы
+   открытый инструмент не перезагружался и не терял результаты. */
+(function (root) {
+'use strict';
+
+const KEY = 'omni360.theme';
+
+function fromHash() {
+  const m = /(?:^|[#&])theme=(light|dark)\b/.exec(root.location.hash || '');
+  return m ? m[1] : null;
+}
+
+function fromStorage() {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch (e) { return null; }   // приватный режим
+}
+
+function fromSystem() {
+  try {
+    return root.matchMedia && root.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light' : 'dark';
+  } catch (e) { return 'dark'; }
+}
+
+/* current объявляем ДО apply(): apply() его присваивает, а обращение к let-
+   переменной до инициализации — ReferenceError. Раньше здесь было
+   `let current = apply(...)`, и скрипт падал сразу после setAttribute: тема
+   применялась, но слушатель postMessage уже не регистрировался. */
+let current = 'dark';
+
+function apply(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  current = t;
+  return t;
+}
+
+apply(fromHash() || fromStorage() || fromSystem());
+
+/* Панель сообщает о переключении. Сообщения приходят от родительского
+   документа панели; проверяем только форму — данных тут нет, лишь имя темы. */
+root.addEventListener('message', function (e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.omniTheme !== 'light' && d.omniTheme !== 'dark') return;
+  apply(d.omniTheme);
+});
+
+root.OmniTheme = {
+  get: function () { return current; },
+  apply: apply,
+  /* Для отдельной страницы: запомнить выбор. Внутри панели выбор хранит панель. */
+  save: function (theme) {
+    const t = apply(theme);
+    try { localStorage.setItem(KEY, t); } catch (e) { /* приватный режим */ }
+    return t;
+  },
+  isEmbedded: function () {
+    try { return root.parent !== root; } catch (e) { return true; }
+  }
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="panel">
+  <header>
+    <h1>Карта-компаньон</h1>
+    <span class="v">v1 · OSM</span>
+  </header>
+  <div class="body">
+
+    <div class="group">
+      <div class="label">Поиск адреса / места</div>
+      <div class="search">
+        <input id="q" type="text" placeholder="Невский проспект 1, Санкт-Петербург" autocomplete="off" />
+        <button id="qbtn" class="primary">Найти</button>
+      </div>
+      <div id="results" class="results"></div>
+    </div>
+
+    <div class="group">
+      <div class="label">Перейти к координатам</div>
+      <div class="search">
+        <input id="coords" type="text" placeholder="59.9386, 30.3141" autocomplete="off" />
+        <button id="gobtn">Перейти</button>
+      </div>
+      <div class="hint">Скопируй координаты точки с платформы и вставь сюда — попадёшь в то же место.</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Подложка</div>
+      <div class="seg" id="base">
+        <button data-base="voyager" class="on">Детальная</button>
+        <button data-base="osm">OSM</button>
+        <button data-base="dark">Тёмная</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="toggle">
+        <span>Слой общественного транспорта</span>
+        <label class="switch"><input type="checkbox" id="transit"><span></span></label>
+      </div>
+      <div class="toggle">
+        <span>Остановки и метро (OSM)</span>
+        <label class="switch"><input type="checkbox" id="stops"><span></span></label>
+      </div>
+      <div id="stopsInfo" class="hint">Включи и подвинь карту — подтянет остановки в видимой области (с зума 14+).</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Сверить с другими картами</div>
+      <div class="links">
+        <button data-ext="yandex"><span class="dot" style="background:#ffcc00"></span>Яндекс</button>
+        <button data-ext="2gis"><span class="dot" style="background:#22c55e"></span>2ГИС</button>
+        <button data-ext="google"><span class="dot" style="background:#4f8cff"></span>Google</button>
+        <button data-ext="osm"><span class="dot" style="background:#8b93a2"></span>OSM</button>
+      </div>
+      <div class="hint">Откроет текущую точку (пин или центр карты) в новой вкладке.</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Текущая точка</div>
+      <div class="readout">
+        Пин: <b id="pin">— нет (клик по карте)</b><br>
+        Центр: <b id="center">—</b> · зум <b id="zoom">—</b>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---- базовые слои (без API-ключей) -------------------------------------
+  var bases = {
+    voyager: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+      maxZoom:20, subdomains:'abcd',
+      attribution:'© OpenStreetMap, © CARTO'
+    }),
+    osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19, attribution:'© OpenStreetMap'
+    }),
+    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+      maxZoom:20, subdomains:'abcd', attribution:'© OpenStreetMap, © CARTO'
+    })
+  };
+
+  // транспортный оверлей (ÖPNVKarte) — бесплатный, на данных OSM
+  var transitLayer = L.tileLayer('https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png',{
+    maxZoom:18, opacity:0.85, attribution:'Transport © memomaps.de (OSM)'
+  });
+
+  // В тёмной теме логичнее стартовать с тёмной подложки; светлая тема —
+  // с «Детальной». Дальше выбор за пользователем, тема его не переопределяет.
+  var startBase = (document.documentElement.getAttribute('data-theme') === 'dark')
+    ? 'dark' : 'voyager';
+
+  var map = L.map('map',{ zoomControl:true, center:[59.9386,30.3141], zoom:12, layers:[bases[startBase]] });
+  var currentBase = startBase;
+  document.querySelectorAll('#base button').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-base') === startBase);
+  });
+
+  // ---- состояние ----------------------------------------------------------
+  var pin = null;            // L.marker
+  var pinLatLng = null;
+  var stopsGroup = L.layerGroup().addTo(map);
+
+  function fmt(n){ return Number(n).toFixed(5); }
+  function activePoint(){ return pinLatLng || map.getCenter(); }
+
+  function updateReadout(){
+    var c = map.getCenter();
+    document.getElementById('center').textContent = fmt(c.lat)+', '+fmt(c.lng);
+    document.getElementById('zoom').textContent = map.getZoom();
+    document.getElementById('pin').textContent = pinLatLng
+      ? fmt(pinLatLng.lat)+', '+fmt(pinLatLng.lng)
+      : '— нет (клик по карте)';
+  }
+  map.on('moveend zoomend', updateReadout);
+  updateReadout();
+
+  // ---- пин по клику -------------------------------------------------------
+  map.on('click', function(e){
+    pinLatLng = e.latlng;
+    if(pin){ pin.setLatLng(e.latlng); }
+    else { pin = L.marker(e.latlng,{draggable:true}).addTo(map);
+      pin.on('dragend', function(){ pinLatLng = pin.getLatLng(); updateReadout(); });
+    }
+    pin.bindPopup(fmt(e.latlng.lat)+', '+fmt(e.latlng.lng)).openPopup();
+    updateReadout();
+  });
+
+  // ---- переключение подложки ----------------------------------------------
+  document.querySelectorAll('#base button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var key = b.getAttribute('data-base');
+      if(key===currentBase) return;
+      map.removeLayer(bases[currentBase]);
+      bases[key].addTo(map); bases[key].bringToBack();
+      currentBase = key;
+      document.querySelectorAll('#base button').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');
+    });
+  });
+
+  // ---- транспортный оверлей ----------------------------------------------
+  document.getElementById('transit').addEventListener('change', function(e){
+    if(e.target.checked){ transitLayer.addTo(map); } else { map.removeLayer(transitLayer); }
+  });
+
+  // ---- остановки через Overpass ------------------------------------------
+  var stopsOn = false, stopsTimer = null;
+  var typeStyle = {
+    bus:    {color:'#4f8cff', label:'Автобус/тролл.'},
+    tram:   {color:'#f59e0b', label:'Трамвай'},
+    subway: {color:'#ef4444', label:'Метро'},
+    rail:   {color:'#a855f7', label:'Ж/д'},
+    other:  {color:'#22c55e', label:'Остановка'}
+  };
+
+  function classify(tags){
+    if(!tags) return 'other';
+    if(tags.station==='subway' || tags.railway==='subway_entrance' || tags.subway==='yes') return 'subway';
+    if(tags.railway==='tram_stop' || tags.tram==='yes') return 'tram';
+    if(tags.railway==='station' || tags.railway==='halt') return 'rail';
+    if(tags.highway==='bus_stop' || tags.bus==='yes' || tags.trolleybus==='yes') return 'bus';
+    return 'other';
+  }
+
+  function dotIcon(color){
+    return L.divIcon({className:'', html:'<div class="stopdot" style="width:11px;height:11px;background:'+color+'"></div>', iconSize:[11,11], iconAnchor:[6,6]});
+  }
+
+  function loadStops(){
+    if(!stopsOn) return;
+    if(map.getZoom() < 14){
+      document.getElementById('stopsInfo').innerHTML = '<span style="color:var(--warn)">Приблизь карту до зума 14+, чтобы подтянуть остановки.</span>';
+      stopsGroup.clearLayers();
+      return;
+    }
+    var b = map.getBounds();
+    var bbox = b.getSouth()+','+b.getWest()+','+b.getNorth()+','+b.getEast();
+    var query =
+      '[out:json][timeout:25];(' +
+      'node["highway"="bus_stop"]('+bbox+');' +
+      'node["railway"="tram_stop"]('+bbox+');' +
+      'node["railway"="subway_entrance"]('+bbox+');' +
+      'node["railway"="station"]('+bbox+');' +
+      'node["public_transport"="platform"]('+bbox+');' +
+      ');out body 800;';
+
+    document.getElementById('stopsInfo').textContent = 'Загружаю остановки…';
+    fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:query})
+      .then(function(r){ if(!r.ok) throw new Error('overpass '+r.status); return r.json(); })
+      .then(function(data){
+        stopsGroup.clearLayers();
+        var n = 0;
+        (data.elements||[]).forEach(function(el){
+          if(el.lat==null || el.lon==null) return;
+          var t = classify(el.tags), st = typeStyle[t];
+          var name = (el.tags && (el.tags.name || el.tags.ref)) || 'без названия';
+          L.marker([el.lat,el.lon],{icon:dotIcon(st.color)})
+            .bindPopup('<b>'+name+'</b><br><span class="stop-kind">'+st.label+'</span>')
+            .addTo(stopsGroup);
+          n++;
+        });
+        document.getElementById('stopsInfo').innerHTML = n
+          ? '<span class="count">Показано остановок: '+n+'</span>'
+          : 'В этой области остановок не найдено.';
+      })
+      .catch(function(err){
+        document.getElementById('stopsInfo').innerHTML =
+          '<span style="color:var(--danger)">Не удалось загрузить (Overpass занят). Попробуй ещё раз.</span>';
+        console.error(err);
+      });
+  }
+
+  document.getElementById('stops').addEventListener('change', function(e){
+    stopsOn = e.target.checked;
+    if(stopsOn){ loadStops(); }
+    else { stopsGroup.clearLayers(); document.getElementById('stopsInfo').textContent = 'Включи и подвинь карту — подтянет остановки в видимой области (с зума 14+).'; }
+  });
+  map.on('moveend', function(){
+    if(!stopsOn) return;
+    clearTimeout(stopsTimer);
+    stopsTimer = setTimeout(loadStops, 600);
+  });
+
+  // ---- геокодинг (Nominatim) ---------------------------------------------
+  var qInput = document.getElementById('q'), resultsEl = document.getElementById('results');
+  function search(){
+    var q = qInput.value.trim();
+    if(!q){ resultsEl.innerHTML=''; return; }
+    resultsEl.innerHTML = '<div class="r"><span class="a">Ищу…</span></div>';
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=ru&countrycodes=ru&q='+encodeURIComponent(q);
+    fetch(url,{headers:{'Accept':'application/json'}})
+      .then(function(r){ return r.json(); })
+      .then(function(list){
+        if(!list.length){ resultsEl.innerHTML = '<div class="r"><span class="a">Ничего не найдено</span></div>'; return; }
+        resultsEl.innerHTML = '';
+        list.forEach(function(item){
+          var div = document.createElement('div'); div.className='r';
+          var name = item.name || item.display_name.split(',')[0];
+          div.innerHTML = '<div class="n">'+name+'</div><div class="a">'+item.display_name+'</div>';
+          div.addEventListener('click', function(){
+            var lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+            map.setView([lat,lon], 17);
+            pinLatLng = L.latLng(lat,lon);
+            if(pin){ pin.setLatLng(pinLatLng); } else { pin = L.marker(pinLatLng,{draggable:true}).addTo(map);
+              pin.on('dragend', function(){ pinLatLng = pin.getLatLng(); updateReadout(); }); }
+            pin.bindPopup('<b>'+name+'</b>').openPopup();
+            resultsEl.innerHTML=''; updateReadout();
+          });
+          resultsEl.appendChild(div);
+        });
+      })
+      .catch(function(){ resultsEl.innerHTML = '<div class="r"><span class="a" style="color:var(--danger)">Ошибка поиска</span></div>'; });
+  }
+  document.getElementById('qbtn').addEventListener('click', search);
+  qInput.addEventListener('keydown', function(e){ if(e.key==='Enter') search(); });
+
+  // ---- переход к координатам ---------------------------------------------
+  document.getElementById('gobtn').addEventListener('click', function(){
+    var raw = document.getElementById('coords').value.trim().replace(/;/g,',');
+    var m = raw.split(/[, ]+/).filter(Boolean).map(Number);
+    if(m.length>=2 && !isNaN(m[0]) && !isNaN(m[1])){
+      var lat=m[0], lon=m[1];
+      map.setView([lat,lon], 17);
+      pinLatLng = L.latLng(lat,lon);
+      if(pin){ pin.setLatLng(pinLatLng); } else { pin = L.marker(pinLatLng,{draggable:true}).addTo(map);
+        pin.on('dragend', function(){ pinLatLng = pin.getLatLng(); updateReadout(); }); }
+      pin.bindPopup(fmt(lat)+', '+fmt(lon)).openPopup();
+      updateReadout();
+    }
+  });
+
+  // ---- внешние карты (deep links) ----------------------------------------
+  document.querySelectorAll('.links button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = activePoint(), lat=p.lat, lon=p.lng, z=map.getZoom();
+      var url;
+      switch(b.getAttribute('data-ext')){
+        case 'yandex': url='https://yandex.ru/maps/?ll='+lon+','+lat+'&z='+z+'&pt='+lon+','+lat; break;
+        case '2gis':   url='https://2gis.ru/geo/'+lon+','+lat; break;
+        case 'google': url='https://www.google.com/maps/search/?api=1&query='+lat+','+lon; break;
+        default:       url='https://www.openstreetmap.org/?mlat='+lat+'&mlon='+lon+'#map='+z+'/'+lat+'/'+lon;
+      }
+      window.open(url,'_blank','noopener');
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

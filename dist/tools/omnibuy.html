@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniBuy — Калькулятор надбавки</title>
+<style>
+  /* У калькулятора своя вёрстка (карточка по центру), поэтому tool-ui.css он
+     не подключает — но палитра та же и тоже на переменных. */
+  :root {
+    --bg: #0a0e1a;
+    --card: #111827;
+    --line: #1e293b;
+    --text: #f1f5f9;
+    --desc: #94a3b8;
+    --muted: #64748b;
+    --dim: #475569;
+    --panel: #0f172a;
+    --input-bg: #1e293b;
+    --input-line: #334155;
+    --accent: #00c6ff;
+    --accent-2: #7bed9f;
+    --link: #60a5fa;
+    --link-hover: #93c5fd;
+    --shadow: 0 24px 60px rgba(0, 0, 0, .4);
+    --row-hover: #1a2235;
+    --dot: #334155;
+    --footer: #334155;
+    --box-bg: linear-gradient(135deg, #0d2440, #0d2e20);
+    --box-line: #1e4d40;
+    --sk: #fb923c;
+    --profit: #4ade80;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7;
+    --card: #ffffff;
+    --line: #dbe3ec;
+    --text: #0f172a;
+    --desc: #475569;
+    --muted: #64748b;
+    --dim: #94a3b8;
+    --panel: #f6f8fb;
+    --input-bg: #ffffff;
+    --input-line: #cbd5e1;
+    --accent: #0284c7;
+    --accent-2: #15803d;
+    --link: #0369a1;
+    --link-hover: #075985;
+    --shadow: 0 20px 50px rgba(15, 23, 42, .12);
+    --row-hover: #f6f8fb;
+    --dot: #cbd5e1;
+    --footer: #94a3b8;
+    --box-bg: linear-gradient(135deg, #eff6ff, #ecfdf5);
+    --box-line: #a7f3d0;
+    --sk: #c2410c;
+    --profit: #047857;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    transition: background .2s;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 36px;
+    width: 100%;
+    max-width: 620px;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .logo-text { font-size: 18px; font-weight: 700; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .logo-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--dim); margin-bottom: 14px; margin-top: 24px;
+  }
+
+  .field { margin-bottom: 16px; }
+
+  label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
+
+  input[type="number"] {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
+    border-radius: 10px; color: var(--text); font-size: 15px;
+    padding: 11px 14px; outline: none; transition: border-color 0.15s; appearance: none;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Tiers table */
+  .tiers-toggle {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    color: var(--link); font-size: 12px; font-weight: 500; margin-top: 4px;
+    user-select: none; width: fit-content;
+  }
+  .tiers-toggle:hover { color: var(--link-hover); }
+  .tiers-toggle svg { transition: transform 0.2s; }
+  .tiers-toggle.open svg { transform: rotate(180deg); }
+
+  .tiers-table { display: none; margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .tiers-table.open { display: block; }
+
+  .tier-row {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: center; padding: 10px 14px; gap: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tier-row:last-child { border-bottom: none; }
+  .tier-label { font-size: 12px; color: var(--muted); }
+  .tier-input-wrap { display: flex; align-items: center; gap: 4px; }
+  .tier-input-wrap input { width: 64px; padding: 6px 8px; font-size: 13px; border-radius: 7px; text-align: right; }
+  .tier-input-wrap span { font-size: 13px; color: var(--muted); }
+  .reset-link { font-size: 11px; color: var(--dim); cursor: pointer; text-align: right; padding: 8px 14px; display: block; border-top: 1px solid var(--line); }
+  .reset-link:hover { color: var(--link); }
+
+  .divider { height: 1px; background: var(--line); margin: 24px 0; }
+
+  /* Markup result box */
+  .markup-box {
+    background: var(--box-bg);
+    border: 1px solid var(--box-line); border-radius: 14px;
+    padding: 18px 20px; display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .markup-box-label { font-size: 14px; color: var(--desc); }
+  .markup-box-sub { font-size: 11px; color: var(--dim); margin-top: 3px; }
+  .markup-box-value {
+    font-size: 32px; font-weight: 800;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* Breakdown table */
+  .breakdown { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+
+  .breakdown-head {
+    display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr;
+    padding: 8px 14px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .breakdown-head span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--dim); text-align: right; }
+  .breakdown-head span:first-child { text-align: left; }
+
+  .breakdown-row {
+    display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr;
+    padding: 11px 14px; border-bottom: 1px solid var(--line);
+    align-items: center; transition: background 0.1s;
+  }
+  .breakdown-row:last-child { border-bottom: none; }
+  .breakdown-row:hover { background: var(--row-hover); }
+
+  .breakdown-row .col { font-size: 13px; color: var(--desc); }
+  .breakdown-row .col.sk { color: var(--sk); font-weight: 600; text-align: right; }
+  .breakdown-row .col.net { color: var(--text); font-weight: 600; text-align: right; }
+  .breakdown-row .col.profit { font-weight: 700; text-align: right; }
+  .breakdown-row .col.profit.good { color: var(--profit); }
+  .breakdown-row .col.profit.min { color: var(--desc); }
+  .breakdown-row .col.profit .pct { font-size: 10px; font-weight: 400; color: var(--dim); }
+
+  .tier-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--desc);
+  }
+  .tier-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
+
+  .footer { margin-top: 20px; text-align: center; font-size: 11px; color: var(--footer); }
+
+  .placeholder-row {
+    padding: 20px; text-align: center; font-size: 13px; color: var(--dim);
+  }
+</style>
+<script>
+/* Тема инструмента.
+
+   Инструмент открывается либо внутри панели (в iframe), либо отдельной
+   страницей. Поэтому тему берём по порядку:
+     1. #theme=... в адресе — так панель задаёт тему сразу, без мигания;
+     2. сохранённая в localStorage — для отдельной страницы;
+     3. системная настройка.
+
+   Панель при переключении присылает postMessage — применяем на лету, чтобы
+   открытый инструмент не перезагружался и не терял результаты. */
+(function (root) {
+'use strict';
+
+const KEY = 'omni360.theme';
+
+function fromHash() {
+  const m = /(?:^|[#&])theme=(light|dark)\b/.exec(root.location.hash || '');
+  return m ? m[1] : null;
+}
+
+function fromStorage() {
+  try {
+    const v = localStorage.getItem(KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch (e) { return null; }   // приватный режим
+}
+
+function fromSystem() {
+  try {
+    return root.matchMedia && root.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light' : 'dark';
+  } catch (e) { return 'dark'; }
+}
+
+/* current объявляем ДО apply(): apply() его присваивает, а обращение к let-
+   переменной до инициализации — ReferenceError. Раньше здесь было
+   `let current = apply(...)`, и скрипт падал сразу после setAttribute: тема
+   применялась, но слушатель postMessage уже не регистрировался. */
+let current = 'dark';
+
+function apply(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  current = t;
+  return t;
+}
+
+apply(fromHash() || fromStorage() || fromSystem());
+
+/* Панель сообщает о переключении. Сообщения приходят от родительского
+   документа панели; проверяем только форму — данных тут нет, лишь имя темы. */
+root.addEventListener('message', function (e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.omniTheme !== 'light' && d.omniTheme !== 'dark') return;
+  apply(d.omniTheme);
+});
+
+root.OmniTheme = {
+  get: function () { return current; },
+  apply: apply,
+  /* Для отдельной страницы: запомнить выбор. Внутри панели выбор хранит панель. */
+  save: function (theme) {
+    const t = apply(theme);
+    try { localStorage.setItem(KEY, t); } catch (e) { /* приватный режим */ }
+    return t;
+  },
+  isEmbedded: function () {
+    try { return root.parent !== root; } catch (e) { return true; }
+  }
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">OmniBuy</div>
+      <div class="logo-sub">суперкомм для агентств</div>
+    </div>
+  </div>
+
+  <h1>Калькулятор надбавки</h1>
+  <p class="subtitle">Надбавка рассчитывается под максимальный СК — при меньшем СК зарабатываем больше</p>
+
+  <div class="section-label">Входные данные</div>
+
+  <div class="two-col">
+    <div class="field">
+      <label>Стоимость подрядчика (₽)</label>
+      <input type="number" id="contractor" placeholder="500 000" min="0" oninput="calc()">
+    </div>
+    <div class="field">
+      <label>Мин. комиссия агентства (% от цены)</label>
+      <input type="number" id="minComm" value="10" min="0" step="0.1" oninput="calc()">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>% СК по биллингу</label>
+    <div class="tiers-table open" id="tiersTable">
+      <div class="tier-row">
+        <div class="tier-label">до 200 000 ₽/мес</div>
+        <div class="tier-input-wrap"><input type="number" id="t0" value="10" min="0" max="99" step="0.1" oninput="calc()"><span>%</span></div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">200 000 – 1 000 000 ₽/мес</div>
+        <div class="tier-input-wrap"><input type="number" id="t1" value="12" min="0" max="99" step="0.1" oninput="calc()"><span>%</span></div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">1 000 000 – 3 000 000 ₽/мес</div>
+        <div class="tier-input-wrap"><input type="number" id="t2" value="14" min="0" max="99" step="0.1" oninput="calc()"><span>%</span></div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">3 000 000 – 9 000 000 ₽/мес</div>
+        <div class="tier-input-wrap"><input type="number" id="t3" value="16" min="0" max="99" step="0.1" oninput="calc()"><span>%</span></div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">свыше 9 000 000 ₽/мес</div>
+        <div class="tier-input-wrap"><input type="number" id="t4" value="20" min="0" max="99" step="0.1" oninput="calc()"><span>%</span></div>
+      </div>
+      <span class="reset-link" onclick="resetTiers()">↺ сбросить к значениям по умолчанию</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Результат</div>
+
+  <div class="markup-box">
+    <div>
+      <div class="markup-box-label">Надбавка в системе</div>
+      <div class="markup-box-sub" id="markupSub">введите данные выше</div>
+    </div>
+    <div class="markup-box-value" id="markupPct">—</div>
+  </div>
+
+  <div class="breakdown" id="breakdown">
+    <div class="breakdown-head">
+      <span>Биллинг</span>
+      <span>СК клиенту</span>
+      <span>Клиент платит</span>
+      <span>Наш заработок</span>
+    </div>
+    <div class="placeholder-row" id="placeholderRow">введите стоимость подрядчика</div>
+  </div>
+
+  <div class="footer">omni360</div>
+</div>
+
+<script>
+const DEFAULTS = [10, 12, 14, 16, 20];
+const TIER_LABELS = ['до 200К', '200К–1М', '1М–3М', '3М–9М', 'свыше 9М'];
+const TIER_COLORS = ['#94a3b8','#7dd3fc','#60a5fa','#818cf8','#a78bfa'];
+
+function fmt(n) {
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(n);
+}
+
+function resetTiers() {
+  DEFAULTS.forEach((v, i) => { document.getElementById('t'+i).value = v; });
+  calc();
+}
+
+function calc() {
+  const contractor = parseFloat(document.getElementById('contractor').value) || 0;
+  const minCommInput = parseFloat(document.getElementById('minComm').value);
+  const minComm = (isNaN(minCommInput) || minCommInput < 0) ? 10 : minCommInput;
+  const tiers = [0,1,2,3,4].map(i => parseFloat(document.getElementById('t'+i).value) || DEFAULTS[i]);
+
+  const markupEl = document.getElementById('markupPct');
+  const markupSub = document.getElementById('markupSub');
+  const placeholder = document.getElementById('placeholderRow');
+  const breakdown = document.getElementById('breakdown');
+
+  // Remove old rows
+  breakdown.querySelectorAll('.breakdown-row').forEach(r => r.remove());
+
+  if (contractor <= 0) {
+    markupEl.textContent = '—';
+    markupSub.textContent = 'введите данные выше';
+    placeholder.style.display = 'block';
+    return;
+  }
+
+  placeholder.style.display = 'none';
+
+  // Надбавка рассчитывается под максимальный СК
+  // Комиссия считается от цены в системе (listPrice):
+  // ourProfit / listPrice >= minComm/100
+  // (listPrice - listPrice*maxSK - contractor) / listPrice >= minComm/100
+  // 1 - maxSK - contractor/listPrice >= minComm/100
+  // listPrice >= contractor / (1 - maxSK - minComm/100)
+  const maxSK = Math.max(...tiers) / 100;
+  const denom = 1 - maxSK - minComm / 100;
+  if (denom <= 0) {
+    markupEl.textContent = '—';
+    markupSub.textContent = 'мин. комиссия + макс. СК ≥ 100%';
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Невозможно: сумма мин. комиссии и макс. СК должна быть меньше 100%';
+    return;
+  }
+  const listPrice = contractor / denom;
+  const markup = (listPrice / contractor - 1) * 100;
+
+  markupEl.textContent = markup.toFixed(1) + '%';
+  markupSub.textContent = `цена в системе: ${fmt(listPrice)}`;
+
+  // Breakdown per tier
+  tiers.forEach((skPct, i) => {
+    const sk = skPct / 100;
+    const skAmt = listPrice * sk;
+    const clientNet = listPrice - skAmt;
+    const ourProfit = clientNet - contractor;
+    const ourPct = (ourProfit / listPrice) * 100; // от цены в системе
+    const isMin = Math.abs(skPct - Math.max(...tiers)) < 0.001;
+
+    const row = document.createElement('div');
+    row.className = 'breakdown-row';
+    row.innerHTML = `
+      <div class="col tier-badge">
+        <div class="dot" style="background:${TIER_COLORS[i]}"></div>
+        ${TIER_LABELS[i]} · ${skPct}% СК
+      </div>
+      <div class="col sk">${fmt(skAmt)}</div>
+      <div class="col net">${fmt(clientNet)}</div>
+      <div class="col profit ${isMin ? 'min' : 'good'}">${fmt(ourProfit)} <span class="pct">${ourPct.toFixed(1)}% от цены</span></div>
+    `;
+    breakdown.appendChild(row);
+  });
+}
+
+calc();
+</script>
+</body>
+</html>

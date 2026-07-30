@@ -30,11 +30,15 @@ BUNDLE_NAME = 'Omni360 - Панель инструментов (offline).html'
 # не завися от того, что сейчас в Downloads.
 SRC_BUNDLE = os.path.join(HERE, 'source', BUNDLE_NAME)
 
-# id ресурса в bundle → файл инструмента
+# id ресурса в bundle → файл инструмента.
+# omnibuyTool и mapTool уже были в исходной панели — для них переиспользуем
+# существующий uuid, чтобы старый блоб не оставался в manifest мёртвым грузом.
 NEW_TOOLS = [
     ('techreqTool',   'techreq.html'),
     ('creativesTool', 'creatives.html'),
     ('addressesTool', 'addresses.html'),
+    ('omnibuyTool',   'omnibuy.html'),
+    ('mapTool',       'map.html'),
 ]
 
 INJECT_RE = re.compile(r'/\*__INJECT:([A-Za-z0-9_.\-]+)__\*/')
@@ -128,28 +132,6 @@ KNOWN_BUNDLE_UUIDS = set()
 
 PANEL_TEMPLATE = os.path.join(HERE, 'panel', 'template.html')
 
-# Точечные правки ресурсов, которые пришли из исходной панели и своего исходника
-# у нас нет (калькулятор, карта). Формат: id ресурса → список (что, на что).
-RESOURCE_PATCHES = {
-    'omnibuyTool': [
-        ('<div class="footer">omni360 · 2025</div>',
-         '<div class="footer">omni360</div>'),
-    ],
-}
-
-
-def patch_resource(res_id, html):
-    """Применяет правки из RESOURCE_PATCHES. Падает, если искомого текста нет —
-    значит ресурс изменился и правку надо пересмотреть."""
-    for old, new in RESOURCE_PATCHES.get(res_id, []):
-        if old not in html:
-            raise SystemExit(
-                f'{res_id}: не нашёл текст для правки:\n  {old}\n'
-                'Похоже, ресурс в исходной панели изменился — поправьте RESOURCE_PATCHES.')
-        html = html.replace(old, new)
-        print(f'  ~ {res_id}: {old[:46]}… → {new[:46]}…')
-    return html
-
 
 def build_panel_template(orig_template):
     """Наш шаблон панели + подстановки из исходного.
@@ -201,10 +183,11 @@ def make_bundle(built):
         if u in manifest:
             raise SystemExit(f'uuid уже занят в manifest: {u}')
 
-    existing_ids = {e['id'] for e in ext}
+    uuid_by_id = {e['id']: e['uuid'] for e in ext}
     for res_id, _fn in NEW_TOOLS:
         html = built[res_id]
-        uuid = UUIDS[res_id]
+        # ресурс уже был в панели → пишем на его место, иначе берём свой uuid
+        uuid = uuid_by_id.get(res_id) or UUIDS[res_id]
         raw = html.encode('utf-8')
         gz = gzip.compress(raw, 9, mtime=0)
         manifest[uuid] = {
@@ -212,25 +195,9 @@ def make_bundle(built):
             'compressed': True,
             'data': base64.b64encode(gz).decode('ascii'),
         }
-        if res_id in existing_ids:
-            for e in ext:
-                if e['id'] == res_id:
-                    e['uuid'] = uuid
-        else:
+        if res_id not in uuid_by_id:
             ext.append({'id': res_id, 'uuid': uuid})
-
-    # ── правки ресурсов, пришедших из исходной панели (калькулятор, карта) ──
-    id_by_uuid = {e['uuid']: e['id'] for e in ext}
-    for uuid, entry in manifest.items():
-        res_id = id_by_uuid.get(uuid)
-        if res_id not in RESOURCE_PATCHES:
-            continue
-        raw = base64.b64decode(entry['data'])
-        if entry.get('compressed'):
-            raw = gzip.decompress(raw)
-        patched = patch_resource(res_id, raw.decode('utf-8')).encode('utf-8')
-        entry['data'] = base64.b64encode(gzip.compress(patched, 9, mtime=0)).decode('ascii')
-        entry['compressed'] = True
+            uuid_by_id[res_id] = uuid
 
     # ── шаблон панели целиком берём из panel/template.html ──
     template = build_panel_template(template)

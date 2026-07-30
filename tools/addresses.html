@@ -25,10 +25,9 @@
 
   <h1>Подбор адресов</h1>
   <p class="subtitle">
-    Собирает объекты из справочника 2ГИС двумя проходами — широким поиском от центра
-    города и обходом по сетке — и объединяет результат. Так находится заметно больше,
-    чем любым проходом по отдельности: справочник отдаёт разные объекты в зависимости
-    от точки и радиуса поиска.
+    Забирает объекты из справочника 2ГИС вокруг центра города и снимает дубли
+    по координатам. По умолчанию работает быстро — одним широким поиском;
+    если нужна полнота, включается дополнительный обход по сетке.
   </p>
 
   <div class="section-label">Что искать</div>
@@ -51,25 +50,24 @@
   <div class="section-label">Параметры</div>
   <div class="grid3">
     <div class="field">
-      <label>Радиус широкого поиска, км</label>
-      <input type="number" id="radius" min="1" max="40" step="1">
-      <div class="hint">Максимум 40 км — предел API.</div>
+      <label>Сколько объектов нужно</label>
+      <input type="number" id="maxResults" min="10" max="20000" step="50">
+      <div class="hint">Поиск останавливается, как только набрал столько. Обычно
+        больше и не требуется.</div>
     </div>
     <div class="field">
-      <label>Сетка обхода</label>
+      <label>Полнота</label>
       <select id="grid">
-        <option value="0">только широкий поиск — быстро</option>
-        <option value="4">4×4 — 16 точек</option>
-        <option value="6">6×6 — 36 точек</option>
-        <option value="8">8×8 — 64 точки</option>
+        <option value="0">быстро — один широкий поиск</option>
+        <option value="4">полнее — сетка 4×4</option>
+        <option value="6">максимум — сетка 6×6</option>
       </select>
       <div class="hint" id="gridHint"></div>
     </div>
     <div class="field">
-      <label>Максимум объектов</label>
-      <input type="number" id="maxResults" min="50" max="20000" step="50">
-      <div class="hint">Предохранитель от общих запросов: «магазин» по Москве —
-        больше 20 000 объектов.</div>
+      <label>Радиус поиска, км</label>
+      <input type="number" id="radius" min="1" max="40" step="1">
+      <div class="hint">Максимум 40 км — предел API.</div>
     </div>
   </div>
 
@@ -155,8 +153,10 @@ $('grid').value = String(A.DEFAULTS.GRID);
 function updateGridHint() {
   const g = parseInt($('grid').value, 10) || 0;
   $('gridHint').textContent = g
-    ? 'Дольше, но находит больше: справочник отдаёт разные объекты для разных точек поиска.'
-    : 'Быстро, но часть объектов справочник в широком поиске не показывает.';
+    ? 'Дольше в ' + (g * g) + ' раз: справочник отдаёт разные объекты для разных ' +
+      'точек поиска, поэтому обход находит то, чего нет в широком.'
+    : 'Хватает в большинстве случаев. Часть объектов справочник в широком поиске ' +
+      'не показывает — если нужна полнота, выберите сетку.';
 }
 $('grid').addEventListener('change', updateGridHint);
 updateGridHint();
@@ -217,7 +217,7 @@ $('go').addEventListener('click', async function () {
     GRID: Math.max(0, Math.min(A.LIMITS.GRID_MAX, parseInt($('grid').value, 10) || 0)),
     SPAN: A.DEFAULTS.SPAN,
     SECTOR_RADIUS: A.DEFAULTS.SECTOR_RADIUS,
-    MAX_RESULTS: Math.max(50, Math.min(A.LIMITS.MAX_RESULTS_MAX,
+    MAX_RESULTS: Math.max(10, Math.min(A.LIMITS.MAX_RESULTS_MAX,
       parseInt($('maxResults').value, 10) || A.DEFAULTS.MAX_RESULTS)),
     PAGE_SIZE: A.DEFAULTS.PAGE_SIZE
   };
@@ -282,15 +282,16 @@ function render(cfg) {
         '. Собрано то, что успели.</div>';
     }
     if (result.truncated && !result.error) {
-      notes += '<div class="note warn">Забрали не всё — сработало ограничение ' +
-        'в ' + cfg.MAX_RESULTS + ' объектов или поиск остановили. ' +
-        'Поднимите «Максимум объектов» или уточните запрос.</div>';
+      notes += '<div class="note info">Набрали ' + n + ' — столько и просили' +
+        (result.total !== null ? '. В справочнике по запросу ' + result.total : '') +
+        '. Нужно больше — поднимите «Сколько объектов нужно».</div>';
     }
     if (!cfg.GRID) {
-      notes += '<div class="note info">Обход по сетке выключен. Справочник в широком ' +
-        'поиске показывает не все объекты — включите сетку, если нужна полнота.</div>';
+      notes += '<div class="note info">Быстрый режим: один широкий поиск. ' +
+        'Справочник так показывает не все объекты — если важна полнота, ' +
+        'выберите в «Полноте» вариант с сеткой.</div>';
     } else if (result.fromGrid) {
-      notes += '<div class="note ok">Сетка добавила <b>' + result.fromGrid +
+      notes += '<div class="note ok">Обход по сетке добавил <b>' + result.fromGrid +
         '</b> объектов, которых не было в широком поиске.</div>';
     }
     notes += '<div class="note info">Центр поиска: ' + esc(result.center.displayName) + '</div>';
