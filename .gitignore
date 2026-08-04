@@ -11,6 +11,9 @@ out_*.zip
 lib/py_ref/
 lib/ya.json
 
+# PDF-версии инструкций: собираются из .md через docs/md2pdf.py
+docs/*.pdf
+
 # node
 node_modules/
 
