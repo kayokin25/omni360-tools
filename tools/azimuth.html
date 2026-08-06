@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Добавление азимутов</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+</style>
+<script>
+/*__INJECT:theme.js__*/
+</script>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">добавление азимутов в эфирки</div>
+    </div>
+  </div>
+
+  <h1>Добавление азимутов</h1>
+  <p class="subtitle">
+    Добавляет столбец «Азимут» в эфирные справки по значениям из инвентаря (GID → азимут).
+    Остальное в файле не трогается: стили, объединённые ячейки, ширина столбцов и ссылки на
+    фото остаются как были — правится только один столбец.
+  </p>
+
+  <div class="section-label">Источник (inventories_sync)</div>
+  <div class="drop" id="dropInv">
+    <div class="icon">🧭</div>
+    <div class="main" id="invMain">Файл .xlsx со столбцами screen_id и azimuth</div>
+    <div class="sub" id="invSub">берётся первый лист, столбцы ищутся по названию заголовка</div>
+  </div>
+  <input type="file" id="fileInv" accept=".xlsx,.xlsm">
+
+  <div class="section-label">Целевые файлы (эфирки)</div>
+  <div class="drop" id="drop">
+    <div class="icon">📄</div>
+    <div class="main" id="dropMain">Выберите файлы .xlsx или перетащите сюда</div>
+    <div class="sub" id="dropSub">можно сразу несколько · берётся первый лист каждого файла</div>
+  </div>
+  <input type="file" id="file" accept=".xlsx,.xlsm" multiple>
+  <div id="fileList" style="display:none;margin-top:12px"></div>
+
+  <details style="margin-top:14px" id="advBlock">
+    <summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Настройки поиска столбца</summary>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field">
+        <label>Название столбца с GID в эфирках</label>
+        <input type="text" id="gidColumn" value="GID" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Сколько строк сканировать в поисках шапки</label>
+        <input type="number" id="headerScan" value="20" min="1" step="1">
+      </div>
+    </div>
+  </details>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn" id="go" disabled>Добавить азимуты</button>
+    <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+  </div>
+
+  <div class="progress" id="prog">
+    <div class="bar" id="bar"><i></i></div>
+    <div class="progress-text" id="progText"></div>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="results" id="results">
+    <div class="divider"></div>
+    <div class="section-label">Результат</div>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Файл</th><th>Действие</th><th>Строка шапки</th><th>Совпало</th><th>Не найдено</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="dlAll">Скачать все (.zip)</button>
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:azimuth-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, A = window.AzimuthCore;
+const $ = function (id) { return document.getElementById(id); };
+
+let invFile = null, targetFiles = [], azimuthMap = null, results = [];
+
+/* ── выбор источника ── */
+const dropInv = $('dropInv'), fileInv = $('fileInv');
+dropInv.addEventListener('click', function () { fileInv.click(); });
+dropInv.addEventListener('dragover', function (e) { e.preventDefault(); dropInv.classList.add('over'); });
+dropInv.addEventListener('dragleave', function () { dropInv.classList.remove('over'); });
+dropInv.addEventListener('drop', function (e) {
+  e.preventDefault(); dropInv.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) setInv(e.dataTransfer.files[0]);
+});
+fileInv.addEventListener('change', function () {
+  if (fileInv.files && fileInv.files.length) setInv(fileInv.files[0]);
+});
+
+function setInv(f) {
+  if (!/\.xlsx?$|\.xlsm$/i.test(f.name)) { log('Источник должен быть .xlsx — выбран «' + f.name + '»', 'err'); return; }
+  invFile = f;
+  dropInv.classList.add('filled');
+  $('invMain').textContent = f.name;
+  $('invSub').textContent = (f.size / 1024 / 1024).toFixed(1) + ' МБ';
+  updateGo();
+}
+
+/* ── выбор целевых файлов ── */
+const drop = $('drop'), input = $('file');
+drop.addEventListener('click', function () { input.click(); });
+drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+drop.addEventListener('drop', function (e) {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles([].slice.call(e.dataTransfer.files));
+});
+input.addEventListener('change', function () {
+  if (input.files && input.files.length) addFiles([].slice.call(input.files));
+});
+
+function addFiles(picked) {
+  const excel = picked.filter(function (f) { return /\.xlsx?$|\.xlsm$/i.test(f.name); });
+  const skipped = picked.length - excel.length;
+  if (skipped) log('Пропущено файлов не-Excel: ' + skipped, 'warn');
+  if (!excel.length) { log('Нужны файлы .xlsx', 'err'); return; }
+
+  for (const f of excel) {
+    if (f.name.startsWith('~$')) continue;
+    if (targetFiles.some(function (x) { return x.name === f.name && x.size === f.size; })) continue;
+    targetFiles.push(f);
+  }
+  targetFiles.sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
+  renderFileList();
+  updateGo();
+}
+
+function renderFileList() {
+  if (!targetFiles.length) {
+    $('fileList').style.display = 'none';
+    drop.classList.remove('filled');
+    $('dropMain').textContent = 'Выберите файлы .xlsx или перетащите сюда';
+    $('dropSub').textContent = 'можно сразу несколько · берётся первый лист каждого файла';
+    return;
+  }
+  drop.classList.add('filled');
+  $('dropMain').textContent = 'Файлов выбрано: ' + targetFiles.length;
+  const bytes = targetFiles.reduce(function (a, f) { return a + f.size; }, 0);
+  $('dropSub').textContent = (bytes / 1024).toFixed(0) + ' КБ · можно добавить ещё';
+
+  $('fileList').style.display = '';
+  $('fileList').innerHTML =
+    '<div class="table-wrap" style="max-height:190px"><table><tbody>' +
+    targetFiles.map(function (f, i) {
+      return '<tr><td>' + esc(f.name) + '</td>' +
+        '<td class="num muted">' + (f.size / 1024).toFixed(0) + ' КБ</td>' +
+        '<td class="nowrap" style="width:1%"><a href="#" data-i="' + i + '">убрать</a></td></tr>';
+    }).join('') + '</tbody></table></div>';
+  [...$('fileList').querySelectorAll('a[data-i]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      targetFiles.splice(parseInt(a.dataset.i, 10), 1);
+      $('results').classList.remove('on');
+      renderFileList();
+      updateGo();
+    });
+  });
+}
+
+function updateGo() { $('go').disabled = !(invFile && targetFiles.length); }
+
+/* ── лог и прогресс ── */
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text, frac) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+  if (frac !== undefined && frac !== null) {
+    $('bar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
+}
+
+/* ── запуск ── */
+$('go').addEventListener('click', async function () {
+  if (!invFile || !targetFiles.length) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  progress(true, 'Читаю источник…', 0);
+
+  const opt = {
+    gidColumn: $('gidColumn').value.trim() || 'GID',
+    headerScanRows: parseInt($('headerScan').value, 10) || 20
+  };
+
+  try {
+    const src = await A.loadAzimuthMap(invFile);
+    azimuthMap = src.map;
+    log('Источник: ' + src.total + ' пар GID→азимут из ' + src.rows + ' строк.', 'ok');
+
+    results = [];
+    for (let i = 0; i < targetFiles.length; i++) {
+      const f = targetFiles[i];
+      progress(true, 'Файл ' + (i + 1) + ' из ' + targetFiles.length + ': ' + f.name, i / targetFiles.length);
+      try {
+        const res = await A.patchFile(f, azimuthMap, opt);
+        results.push(res);
+        if (res.action === 'skipped') log(f.name + ': пропущен — ' + res.reason, 'warn');
+        else log(f.name + ': столбец Азимут ' + (res.action === 'added' ? 'добавлен' : 'обновлён') +
+          ', совпало=' + res.matched + ', не найдено=' + res.unmatched, 'ok');
+      } catch (e) {
+        results.push({ name: f.name, action: 'skipped', reason: e.message });
+        log(f.name + ': ошибка — ' + e.message, 'err');
+      }
+    }
+    progress(false);
+    render();
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('reset').addEventListener('click', function () {
+  invFile = null; targetFiles = []; azimuthMap = null; results = [];
+  fileInv.value = ''; input.value = '';
+  dropInv.classList.remove('filled');
+  $('invMain').textContent = 'Файл .xlsx со столбцами screen_id и azimuth';
+  $('invSub').textContent = 'берётся первый лист, столбцы ищутся по названию заголовка';
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  renderFileList();
+  updateGo();
+});
+
+/* ── отрисовка результатов ── */
+function render() {
+  const ok = results.filter(function (r) { return r.action !== 'skipped'; });
+  const added = ok.filter(function (r) { return r.action === 'added'; }).length;
+  const updated = ok.filter(function (r) { return r.action === 'updated'; }).length;
+  const skipped = results.length - ok.length;
+  const matched = ok.reduce(function (a, r) { return a + (r.matched || 0); }, 0);
+  const unmatched = ok.reduce(function (a, r) { return a + (r.unmatched || 0); }, 0);
+
+  $('tiles').innerHTML =
+    tile(ok.length, 'файлов обработано', 'good') +
+    (added ? tile(added, 'столбец добавлен') : '') +
+    (updated ? tile(updated, 'столбец обновлён') : '') +
+    tile(matched, 'строк с азимутом') +
+    (unmatched ? tile(unmatched, 'без совпадения', 'warn') : '') +
+    (skipped ? tile(skipped, 'пропущено', 'bad') : '');
+
+  let notes = '';
+  if (skipped) {
+    notes += '<div class="note warn">Пропущено файлов: ' + skipped + '. Обычно значит — в файле нет ' +
+      'столбца «' + esc($('gidColumn').value.trim() || 'GID') + '» в первых ' + $('headerScan').value +
+      ' строках, или это не .xlsx. Список — во вкладке результатов ниже и в логе выше.</div>';
+  }
+  if (unmatched) {
+    notes += '<div class="note info">Не найдено азимута для ' + unmatched + ' ' +
+      (unmatched === 1 ? 'строки' : 'строк') + ' — таких GID нет в источнике ' +
+      '(или у них самих азимут не заполнен). Ячейка остаётся пустой, не нулём.</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tbody').innerHTML = results.map(function (r) {
+    const cls = r.action === 'skipped' ? 'miss' : (r.unmatched ? '' : 'ok');
+    return '<tr class="' + cls + '">' +
+      '<td>' + esc(r.name) + '</td>' +
+      '<td>' + actionLabel(r) + '</td>' +
+      '<td class="num muted">' + (r.headerRow || '—') + '</td>' +
+      '<td class="num">' + (r.matched !== undefined ? r.matched : '—') + '</td>' +
+      '<td class="num muted">' + (r.unmatched !== undefined ? r.unmatched : '—') + '</td>' +
+      '<td class="nowrap">' + (r.blob ? '<a href="#" data-dl="' + esc(r.name) + '">скачать</a>' : '') + '</td>' +
+      '</tr>';
+  }).join('');
+  [...$('tbody').querySelectorAll('a[data-dl]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      const r = results.find(function (x) { return x.name === a.dataset.dl; });
+      if (r && r.blob) L.download(r.blob, r.name);
+    });
+  });
+
+  $('dlAll').style.display = ok.length > 1 ? '' : 'none';
+  $('results').classList.add('on');
+}
+
+function actionLabel(r) {
+  if (r.action === 'added') return '<span style="color:var(--ok-text)">столбец добавлен</span>';
+  if (r.action === 'updated') return '<span style="color:var(--muted)">столбец обновлён</span>';
+  return '<span style="color:var(--err-text)" title="' + esc(r.reason || '') + '">пропущен</span>';
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+
+/* ── скачать все ── */
+$('dlAll').addEventListener('click', async function () {
+  const ok = results.filter(function (r) { return r.blob; });
+  if (!ok.length) return;
+  const files = [];
+  for (const r of ok) {
+    const bytes = new Uint8Array(await r.blob.arrayBuffer());
+    files.push({ name: r.name, bytes: bytes });
+  }
+  L.download(L.zipWrite(files), 'азимуты — эфирки.zip');
+});
+
+/* ── демо-прогон (#demo=1 из гайда) ─────────────────────────────────────────
+   Инвентарь собираем нашим же writeXlsx — он не редактируется, значит для
+   демо годится обычный «чистый» файл. Целевую эфирку строим напрямую как
+   xlsx-zip с одностроч­ной, НЕ объединённой шапкой: это тот самый случай,
+   на котором раньше терялась первая строка данных. */
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  const invBlob = L.writeXlsx([{
+    name: 'inventories', cols: [10, 14, 10],
+    rows: [
+      ['id', 'screen_id', 'azimuth'],
+      [1, 'DEMO-001', 90],
+      [2, 'DEMO-002', 180],
+      [3, 'DEMO-003', 45]
+    ]
+  }]);
+  const demoInv = new File([invBlob], 'Демо — inventories_sync.xlsx', { type: invBlob.type });
+
+  const CT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  const RRELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const WB = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+    '<sheet name="Справка" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  const WBRELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>';
+  const STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<fonts count="2"><font><sz val="10"/></font><font><b/><sz val="10"/></font></fonts>' +
+    '<fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders>' +
+    '<cellXfs count="3"><xf/><xf fontId="1"/><xf/></cellXfs></styleSheet>';
+  const SHEET = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' +
+    '<row r="1"><c r="A1" s="1" t="inlineStr"><is><t>Оператор</t></is></c>' +
+    '<c r="B1" s="1" t="inlineStr"><is><t>GID</t></is></c>' +
+    '<c r="C1" s="1" t="inlineStr"><is><t>Город</t></is></c></row>' +
+    '<row r="2"><c r="A2" t="inlineStr"><is><t>Демо-оператор</t></is></c>' +
+    '<c r="B2" t="inlineStr"><is><t>DEMO-001</t></is></c>' +
+    '<c r="C2" t="inlineStr"><is><t>Казань</t></is></c></row>' +
+    '<row r="3"><c r="A3" t="inlineStr"><is><t>Демо-оператор</t></is></c>' +
+    '<c r="B3" t="inlineStr"><is><t>DEMO-002</t></is></c>' +
+    '<c r="C3" t="inlineStr"><is><t>Уфа</t></is></c></row>' +
+    '<row r="4"><c r="A4" t="inlineStr"><is><t>Демо-оператор</t></is></c>' +
+    '<c r="B4" t="inlineStr"><is><t>DEMO-999</t></is></c>' +
+    '<c r="C4" t="inlineStr"><is><t>Самара</t></is></c></row>' +
+    '</sheetData></worksheet>';
+  const targetBlob = L.zipWrite([
+    { name: '[Content_Types].xml', bytes: L.encodeUtf8(CT) },
+    { name: '_rels/.rels', bytes: L.encodeUtf8(RRELS) },
+    { name: 'xl/workbook.xml', bytes: L.encodeUtf8(WB) },
+    { name: 'xl/_rels/workbook.xml.rels', bytes: L.encodeUtf8(WBRELS) },
+    { name: 'xl/styles.xml', bytes: L.encodeUtf8(STYLES) },
+    { name: 'xl/worksheets/sheet1.xml', bytes: L.encodeUtf8(SHEET) }
+  ]);
+  const demoTarget = new File([targetBlob], 'Демо — эфирная справка.xlsx', { type: targetBlob.type });
+
+  setInv(demoInv);
+  addFiles([demoTarget]);
+  log('Демо: инвентарь на 3 объекта и одна эфирка с одностроч­ной шапкой — созданы здесь же.', 'ok');
+  log('Строка DEMO-999 намеренно без совпадения — такого GID в источнике нет.', 'warn');
+  $('go').click();
+}
+
+})();
+</script>
+</body>
+</html>
