@@ -40,3 +40,12 @@
   for = "/tools/*"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Инвентарь для добавления азимутов (data/inventories_sync.xlsx, ~6.5 МБ):
+# no-cache — не «не кэшировать», а «спросить сервер, не устарело ли» (304,
+# если файл не менялся). Повторные открытия инструмента почти бесплатны,
+# а после обновления файла все сразу увидят новую версию.
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "no-cache"

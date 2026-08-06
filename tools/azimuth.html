@@ -30,13 +30,7 @@
     фото остаются как были — правится только один столбец.
   </p>
 
-  <div class="section-label">Источник (inventories_sync)</div>
-  <div class="drop" id="dropInv">
-    <div class="icon">🧭</div>
-    <div class="main" id="invMain">Файл .xlsx со столбцами screen_id и azimuth</div>
-    <div class="sub" id="invSub">берётся первый лист, столбцы ищутся по названию заголовка</div>
-  </div>
-  <input type="file" id="fileInv" accept=".xlsx,.xlsm">
+  <div class="note info" id="invStatus">Загружаю инвентарь…</div>
 
   <div class="section-label">Целевые файлы (эфирки)</div>
   <div class="drop" id="drop">
@@ -46,20 +40,6 @@
   </div>
   <input type="file" id="file" accept=".xlsx,.xlsm" multiple>
   <div id="fileList" style="display:none;margin-top:12px"></div>
-
-  <details style="margin-top:14px" id="advBlock">
-    <summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Настройки поиска столбца</summary>
-    <div class="grid2" style="margin-top:10px">
-      <div class="field">
-        <label>Название столбца с GID в эфирках</label>
-        <input type="text" id="gidColumn" value="GID" spellcheck="false">
-      </div>
-      <div class="field">
-        <label>Сколько строк сканировать в поисках шапки</label>
-        <input type="number" id="headerScan" value="20" min="1" step="1">
-      </div>
-    </div>
-  </details>
 
   <div class="btn-row" style="margin-top:16px">
     <button class="btn" id="go" disabled>Добавить азимуты</button>
@@ -108,28 +88,51 @@
 const L = window.OmniLib, A = window.AzimuthCore;
 const $ = function (id) { return document.getElementById(id); };
 
-let invFile = null, targetFiles = [], azimuthMap = null, results = [];
+/* Инвентарь один и тот же, его прислали один раз — грузится сам, без
+   участия пользователя. Файл лежит в dist/data (build.py копирует его туда
+   из data/, см. README) и раздаётся Netlify как обычная статика.
 
-/* ── выбор источника ── */
-const dropInv = $('dropInv'), fileInv = $('fileInv');
-dropInv.addEventListener('click', function () { fileInv.click(); });
-dropInv.addEventListener('dragover', function (e) { e.preventDefault(); dropInv.classList.add('over'); });
-dropInv.addEventListener('dragleave', function () { dropInv.classList.remove('over'); });
-dropInv.addEventListener('drop', function (e) {
-  e.preventDefault(); dropInv.classList.remove('over');
-  if (e.dataTransfer.files && e.dataTransfer.files.length) setInv(e.dataTransfer.files[0]);
-});
-fileInv.addEventListener('change', function () {
-  if (fileInv.files && fileInv.files.length) setInv(fileInv.files[0]);
-});
+   Абсолютный URL обязателен: документ открыт на blob: (внутри панели), а
+   относительный /data/... от него не резолвится — та же причина, по которой
+   у подбора адресов эндпоинты собираются через location.origin. */
+const INVENTORY_URL = '/data/inventories_sync.xlsx';
+// Правите data/inventories_sync.xlsx — поправьте и эту дату рядом.
+const INVENTORY_UPDATED = '3 августа 2026';
 
-function setInv(f) {
-  if (!/\.xlsx?$|\.xlsm$/i.test(f.name)) { log('Источник должен быть .xlsx — выбран «' + f.name + '»', 'err'); return; }
-  invFile = f;
-  dropInv.classList.add('filled');
-  $('invMain').textContent = f.name;
-  $('invSub').textContent = (f.size / 1024 / 1024).toFixed(1) + ' МБ';
+let targetFiles = [], azimuthMap = null, inventoryReady = false, results = [];
+
+/* ── инвентарь ── */
+async function loadInventory() {
+  setInvStatus('info', 'Загружаю инвентарь…');
+  try {
+    const url = new URL(INVENTORY_URL, location.origin).href;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('сервер ответил ' + r.status);
+    const blob = await r.blob();
+    await useInventory(blob, false);
+  } catch (e) {
+    inventoryReady = false;
+    setInvStatus('err', 'Не удалось загрузить инвентарь: ' + e.message +
+      '. <a href="#" id="invRetry">Повторить</a>');
+    const retry = $('invRetry');
+    if (retry) retry.addEventListener('click', function (e2) { e2.preventDefault(); loadInventory(); });
+  }
   updateGo();
+}
+
+async function useInventory(blob, isDemo) {
+  const src = await A.loadAzimuthMap(blob);
+  azimuthMap = src.map;
+  inventoryReady = true;
+  setInvStatus('ok', isDemo
+    ? 'Демо-инвентарь: ' + src.total + ' пар GID→азимут.'
+    : 'Инвентарь загружен: ' + src.total.toLocaleString('ru-RU') + ' пар GID→азимут · обновлён ' + INVENTORY_UPDATED + '.');
+}
+
+function setInvStatus(kind, html) {
+  const el = $('invStatus');
+  el.className = 'note ' + kind;
+  el.innerHTML = html;
 }
 
 /* ── выбор целевых файлов ── */
@@ -193,7 +196,7 @@ function renderFileList() {
   });
 }
 
-function updateGo() { $('go').disabled = !(invFile && targetFiles.length); }
+function updateGo() { $('go').disabled = !(inventoryReady && targetFiles.length); }
 
 /* ── лог и прогресс ── */
 function log(msg, kind) {
@@ -218,28 +221,19 @@ function progress(on, text, frac) {
 
 /* ── запуск ── */
 $('go').addEventListener('click', async function () {
-  if (!invFile || !targetFiles.length) return;
+  if (!inventoryReady || !targetFiles.length) return;
   $('go').disabled = true;
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
-  progress(true, 'Читаю источник…', 0);
-
-  const opt = {
-    gidColumn: $('gidColumn').value.trim() || 'GID',
-    headerScanRows: parseInt($('headerScan').value, 10) || 20
-  };
+  progress(true, '', 0);
 
   try {
-    const src = await A.loadAzimuthMap(invFile);
-    azimuthMap = src.map;
-    log('Источник: ' + src.total + ' пар GID→азимут из ' + src.rows + ' строк.', 'ok');
-
     results = [];
     for (let i = 0; i < targetFiles.length; i++) {
       const f = targetFiles[i];
       progress(true, 'Файл ' + (i + 1) + ' из ' + targetFiles.length + ': ' + f.name, i / targetFiles.length);
       try {
-        const res = await A.patchFile(f, azimuthMap, opt);
+        const res = await A.patchFile(f, azimuthMap);
         results.push(res);
         if (res.action === 'skipped') log(f.name + ': пропущен — ' + res.reason, 'warn');
         else log(f.name + ': столбец Азимут ' + (res.action === 'added' ? 'добавлен' : 'обновлён') +
@@ -261,11 +255,8 @@ $('go').addEventListener('click', async function () {
 });
 
 $('reset').addEventListener('click', function () {
-  invFile = null; targetFiles = []; azimuthMap = null; results = [];
-  fileInv.value = ''; input.value = '';
-  dropInv.classList.remove('filled');
-  $('invMain').textContent = 'Файл .xlsx со столбцами screen_id и azimuth';
-  $('invSub').textContent = 'берётся первый лист, столбцы ищутся по названию заголовка';
+  targetFiles = []; results = [];
+  input.value = '';
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
   renderFileList();
@@ -291,9 +282,9 @@ function render() {
 
   let notes = '';
   if (skipped) {
-    notes += '<div class="note warn">Пропущено файлов: ' + skipped + '. Обычно значит — в файле нет ' +
-      'столбца «' + esc($('gidColumn').value.trim() || 'GID') + '» в первых ' + $('headerScan').value +
-      ' строках, или это не .xlsx. Список — во вкладке результатов ниже и в логе выше.</div>';
+    notes += '<div class="note warn">Пропущено файлов: ' + skipped + '. Причина — в каждой строке ' +
+      'результатов ниже и в логе выше; обычно это столбец «' + esc(A.DEFAULTS.gidColumn) +
+      '», которого не нашлось в первых ' + A.DEFAULTS.headerScanRows + ' строках, или файл не .xlsx.</div>';
   }
   if (unmatched) {
     notes += '<div class="note info">Не найдено азимута для ' + unmatched + ' ' +
@@ -347,11 +338,14 @@ $('dlAll').addEventListener('click', async function () {
 });
 
 /* ── демо-прогон (#demo=1 из гайда) ─────────────────────────────────────────
-   Инвентарь собираем нашим же writeXlsx — он не редактируется, значит для
-   демо годится обычный «чистый» файл. Целевую эфирку строим напрямую как
-   xlsx-zip с одностроч­ной, НЕ объединённой шапкой: это тот самый случай,
-   на котором раньше терялась первая строка данных. */
-if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+   Настоящий инвентарь не трогаем — 6,5 МБ ради демо качать незачем. Инвентарь
+   собираем нашим же writeXlsx (он не редактируется — обычный «чистый» файл
+   годится). Целевую эфирку строим напрямую как xlsx-zip с одностроч­ной,
+   НЕ объединённой шапкой: это тот самый случай, на котором раньше терялась
+   первая строка данных. */
+const isDemo = /(?:^|[#&])demo=1\b/.test(location.hash);
+
+if (isDemo) {
   const invBlob = L.writeXlsx([{
     name: 'inventories', cols: [10, 14, 10],
     rows: [
@@ -361,7 +355,6 @@ if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
       [3, 'DEMO-003', 45]
     ]
   }]);
-  const demoInv = new File([invBlob], 'Демо — inventories_sync.xlsx', { type: invBlob.type });
 
   const CT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -405,11 +398,14 @@ if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
   ]);
   const demoTarget = new File([targetBlob], 'Демо — эфирная справка.xlsx', { type: targetBlob.type });
 
-  setInv(demoInv);
-  addFiles([demoTarget]);
-  log('Демо: инвентарь на 3 объекта и одна эфирка с одностроч­ной шапкой — созданы здесь же.', 'ok');
-  log('Строка DEMO-999 намеренно без совпадения — такого GID в источнике нет.', 'warn');
-  $('go').click();
+  useInventory(invBlob, true).then(function () {
+    addFiles([demoTarget]);
+    log('Демо: инвентарь на 3 объекта и одна эфирка с одностроч­ной шапкой — созданы здесь же.', 'ok');
+    log('Строка DEMO-999 намеренно без совпадения — такого GID в источнике нет.', 'warn');
+    $('go').click();
+  });
+} else {
+  loadInventory();
 }
 
 })();

@@ -245,6 +245,26 @@ def make_bundle(built):
     return '\n'.join(lines), len(manifest), len(ext)
 
 
+DATA_DIR = os.path.join(HERE, 'data')
+
+
+def copy_data():
+    """Статические данные (сейчас — только инвентарь для добавления азимутов)
+    копируются в dist/data как есть и раздаются Netlify напрямую, без прокси:
+    файл не секретный, ключа в нём нет. tools/azimuth.html берёт его по
+    абсолютному URL (location.origin + '/data/...') — относительный путь не
+    резолвится из документа на blob:, как и с /api/* у подбора адресов."""
+    if not os.path.isdir(DATA_DIR):
+        return
+    out_dir = os.path.join(DIST, 'data')
+    os.makedirs(out_dir, exist_ok=True)
+    import shutil
+    for name in os.listdir(DATA_DIR):
+        shutil.copy2(os.path.join(DATA_DIR, name), os.path.join(out_dir, name))
+        size = os.path.getsize(os.path.join(out_dir, name))
+        print(f'  data/{name}  ({size / 1024 / 1024:.1f} МБ)')
+
+
 def main():
     if not os.path.exists(SRC_BUNDLE):
         raise SystemExit(
@@ -252,6 +272,9 @@ def main():
             'Положи туда версию БЕЗ трёх новых инструментов (с карточками note:).')
 
     os.makedirs(os.path.join(DIST, 'tools'), exist_ok=True)
+
+    print('── статические данные ──')
+    copy_data()
 
     print('── сборка инструментов ──')
     web = {}
