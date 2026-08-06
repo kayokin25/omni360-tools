@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Подготовка отчётности</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+.modes { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+.mode-btn {
+  padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:var(--panel);
+  color:var(--desc); font-size:13px; font-weight:600; cursor:pointer; transition:.15s;
+}
+.mode-btn:hover { color:var(--text); }
+.mode-btn.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.mode-btn .soon { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:6px; font-size:10px;
+  font-weight:700; text-transform:uppercase; background:var(--warn-bg); color:var(--warn-text); }
+.mode-panel { display:none; }
+.mode-panel.on { display:block; }
+</style>
+<script>
+/*__INJECT:theme.js__*/
+</script>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">подготовка отчётности</div>
+    </div>
+  </div>
+
+  <h1>Подготовка отчётности</h1>
+  <p class="subtitle">
+    Разные клиенты — разные форматы отчётов. Внутри — несколько отдельных сценариев,
+    переключайтесь вкладками ниже.
+  </p>
+
+  <div class="modes" id="modes">
+    <button class="mode-btn on" data-mode="inventory">Инвенто</button>
+    <button class="mode-btn" data-mode="masterad">MasterAd <span class="soon">скоро</span></button>
+  </div>
+
+  <!-- ══════════════════════════ ИНВЕНТО ══════════════════════════ -->
+  <div class="mode-panel on" id="panel-inventory">
+
+    <p class="subtitle">
+      Готовит эфирную справку к отправке клиенту: убирает столбец «Комиссия платформы»,
+      добавляет нумерацию «№» и ставит показанные объекты (Кол-во показов &gt; 0) первыми,
+      отсортированными по GID — непоказанные остаются внизу в своём порядке.
+      Стили, ширина столбцов и ссылки на фото не трогаются — правится только то, что нужно.
+    </p>
+
+    <div class="section-label">Эфирные справки (.xlsx)</div>
+    <div class="drop" id="drop">
+      <div class="icon">📄</div>
+      <div class="main" id="dropMain">Выберите файлы .xlsx или перетащите сюда</div>
+      <div class="sub" id="dropSub">можно сразу несколько · берётся первый лист каждого файла</div>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xlsm" multiple>
+    <div id="fileList" style="display:none;margin-top:12px"></div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="go" disabled>Подготовить</button>
+      <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+    </div>
+
+    <div class="progress" id="prog">
+      <div class="bar" id="bar"><i></i></div>
+      <div class="progress-text" id="progText"></div>
+    </div>
+    <div class="log" id="log"></div>
+
+    <div class="results" id="results">
+      <div class="divider"></div>
+      <div class="section-label">Результат</div>
+      <div class="tiles" id="tiles"></div>
+      <div id="notes"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Файл</th><th>Показанные</th><th>Непоказанные</th><th>Комиссия убрана</th><th></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="dlAll">Скачать все (.zip)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ MASTERAD (заглушка) ══════════════════════════ -->
+  <div class="mode-panel" id="panel-masterad">
+    <div class="note info">
+      <b>В разработке.</b> Логику уже разобрал по переписке — здесь будет: объединение
+      нескольких выгрузок статистики (лимит строк у системы), замена нулей в OTS по
+      таблице «город × тип конструкции», подсчёт факта только по «УСПЕШНЫМ» показам,
+      план из МП с пересчётом на сутки, и итоговый отчёт на 5 листах
+      (свод / Отчёт / свод по минутам / Отчёт по минутам / Лист2) — как в примерах, что уже
+      делались вручную через чат.
+    </div>
+    <div class="note warn" style="margin-top:12px">
+      Чтобы собрать инструмент точно под нужный вид, нужны примеры файлов:
+      <ul style="margin:8px 0 0 18px; padding:0;">
+        <li>готовый отчёт-образец (5 листов) — понять точную раскладку столбцов и формул;</li>
+        <li>один файл сырой статистики («Статистика …») — понять формат выгрузки;</li>
+        <li>один файл плана (МП) — понять, как выглядят прогнозные цифры по городам.</li>
+      </ul>
+      Пришлите — доделаю.
+    </div>
+  </div>
+
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:inventory-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, I = window.InventoryCore;
+const $ = function (id) { return document.getElementById(id); };
+
+/* ── переключатель режимов ── */
+[...$('modes').children].forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const mode = btn.dataset.mode;
+    [...$('modes').children].forEach(function (b) { b.classList.toggle('on', b === btn); });
+    ['inventory', 'masterad'].forEach(function (m) {
+      $('panel-' + m).classList.toggle('on', m === mode);
+    });
+  });
+});
+
+/* ── Инвенто: выбор файлов ── */
+let targetFiles = [], results = [];
+const drop = $('drop'), input = $('file');
+drop.addEventListener('click', function () { input.click(); });
+drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+drop.addEventListener('drop', function (e) {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles([].slice.call(e.dataTransfer.files));
+});
+input.addEventListener('change', function () {
+  if (input.files && input.files.length) addFiles([].slice.call(input.files));
+});
+
+function addFiles(picked) {
+  const excel = picked.filter(function (f) { return /\.xlsx?$|\.xlsm$/i.test(f.name); });
+  const skipped = picked.length - excel.length;
+  if (skipped) log('Пропущено файлов не-Excel: ' + skipped, 'warn');
+  if (!excel.length) { log('Нужны файлы .xlsx', 'err'); return; }
+
+  for (const f of excel) {
+    if (f.name.startsWith('~$')) continue;
+    if (targetFiles.some(function (x) { return x.name === f.name && x.size === f.size; })) continue;
+    targetFiles.push(f);
+  }
+  targetFiles.sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
+  renderFileList();
+  updateGo();
+}
+
+function renderFileList() {
+  if (!targetFiles.length) {
+    $('fileList').style.display = 'none';
+    drop.classList.remove('filled');
+    $('dropMain').textContent = 'Выберите файлы .xlsx или перетащите сюда';
+    $('dropSub').textContent = 'можно сразу несколько · берётся первый лист каждого файла';
+    return;
+  }
+  drop.classList.add('filled');
+  $('dropMain').textContent = 'Файлов выбрано: ' + targetFiles.length;
+  const bytes = targetFiles.reduce(function (a, f) { return a + f.size; }, 0);
+  $('dropSub').textContent = (bytes / 1024).toFixed(0) + ' КБ · можно добавить ещё';
+
+  $('fileList').style.display = '';
+  $('fileList').innerHTML =
+    '<div class="table-wrap" style="max-height:190px"><table><tbody>' +
+    targetFiles.map(function (f, i) {
+      return '<tr><td>' + esc(f.name) + '</td>' +
+        '<td class="num muted">' + (f.size / 1024).toFixed(0) + ' КБ</td>' +
+        '<td class="nowrap" style="width:1%"><a href="#" data-i="' + i + '">убрать</a></td></tr>';
+    }).join('') + '</tbody></table></div>';
+  [...$('fileList').querySelectorAll('a[data-i]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      targetFiles.splice(parseInt(a.dataset.i, 10), 1);
+      $('results').classList.remove('on');
+      renderFileList();
+      updateGo();
+    });
+  });
+}
+
+function updateGo() { $('go').disabled = !targetFiles.length; }
+
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function progress(on, text, frac) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined) $('progText').textContent = text;
+  if (frac !== undefined && frac !== null) {
+    $('bar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
+}
+
+$('go').addEventListener('click', async function () {
+  if (!targetFiles.length) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  progress(true, '', 0);
+
+  try {
+    results = [];
+    for (let i = 0; i < targetFiles.length; i++) {
+      const f = targetFiles[i];
+      progress(true, 'Файл ' + (i + 1) + ' из ' + targetFiles.length + ': ' + f.name, i / targetFiles.length);
+      try {
+        const res = await I.patchFile(f);
+        results.push(res);
+        if (res.action === 'skipped') { log(f.name + ': пропущен — ' + res.reason, 'warn'); continue; }
+        log(f.name + ': показанных ' + res.nonzero + ', непоказанных ' + res.zero +
+          (res.droppedColumn ? '' : ' — комиссия не найдена, не удалена'), 'ok');
+        if (res.impNote) log(f.name + ': ' + res.impNote, 'warn');
+      } catch (e) {
+        results.push({ name: f.name, action: 'skipped', reason: e.message });
+        log(f.name + ': ошибка — ' + e.message, 'err');
+      }
+    }
+    progress(false);
+    render();
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('reset').addEventListener('click', function () {
+  targetFiles = []; results = [];
+  input.value = '';
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  renderFileList();
+  updateGo();
+});
+
+function render() {
+  const ok = results.filter(function (r) { return r.action === 'ok'; });
+  const skipped = results.length - ok.length;
+  const totalNonzero = ok.reduce(function (a, r) { return a + r.nonzero; }, 0);
+  const totalZero = ok.reduce(function (a, r) { return a + r.zero; }, 0);
+
+  $('tiles').innerHTML =
+    tile(ok.length, 'файлов обработано', 'good') +
+    tile(totalNonzero, 'показанных объектов') +
+    (totalZero ? tile(totalZero, 'непоказанных') : '') +
+    (skipped ? tile(skipped, 'пропущено', 'bad') : '');
+
+  let notes = '';
+  if (skipped) {
+    notes += '<div class="note warn">Пропущено файлов: ' + skipped + ' — причина в каждой строке ' +
+      'результатов ниже и в логе выше (обычно не нашёлся столбец «GID» в первых 60 строках, ' +
+      'или файл не .xlsx).</div>';
+  }
+  $('notes').innerHTML = notes;
+
+  $('tbody').innerHTML = results.map(function (r) {
+    const cls = r.action === 'skipped' ? 'miss' : 'ok';
+    return '<tr class="' + cls + '">' +
+      '<td>' + esc(r.name) + '</td>' +
+      '<td class="num">' + (r.nonzero !== undefined ? r.nonzero : '—') + '</td>' +
+      '<td class="num muted">' + (r.zero !== undefined ? r.zero : '—') + '</td>' +
+      '<td>' + (r.action === 'skipped' ? '<span title="' + esc(r.reason || '') + '" style="color:var(--err-text)">пропущен</span>'
+                 : (r.droppedColumn ? 'да' : '<span class="muted">нет — не найдена</span>')) + '</td>' +
+      '<td class="nowrap">' + (r.blob ? '<a href="#" data-dl="' + esc(r.name) + '">скачать</a>' : '') + '</td>' +
+      '</tr>';
+  }).join('');
+  [...$('tbody').querySelectorAll('a[data-dl]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      const r = results.find(function (x) { return x.name === a.dataset.dl; });
+      if (r && r.blob) L.download(r.blob, r.name);
+    });
+  });
+
+  $('dlAll').style.display = ok.length > 1 ? '' : 'none';
+  $('results').classList.add('on');
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+
+$('dlAll').addEventListener('click', async function () {
+  const ok = results.filter(function (r) { return r.blob; });
+  if (!ok.length) return;
+  const files = [];
+  for (const r of ok) files.push({ name: r.name, bytes: new Uint8Array(await r.blob.arrayBuffer()) });
+  L.download(L.zipWrite(files), 'отчётность — инвенто.zip');
+});
+
+})();
+</script>
+</body>
+</html>
