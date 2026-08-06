@@ -42,7 +42,7 @@
 
   <div class="modes" id="modes">
     <button class="mode-btn on" data-mode="inventory">Инвенто</button>
-    <button class="mode-btn" data-mode="masterad">MasterAd <span class="soon">скоро</span></button>
+    <button class="mode-btn" data-mode="masterad">MasterAd</button>
   </div>
 
   <!-- ══════════════════════════ ИНВЕНТО ══════════════════════════ -->
@@ -96,24 +96,79 @@
     </div>
   </div>
 
-  <!-- ══════════════════════════ MASTERAD (заглушка) ══════════════════════════ -->
+  <!-- ══════════════════════════ MASTERAD ══════════════════════════ -->
   <div class="mode-panel" id="panel-masterad">
-    <div class="note info">
-      <b>В разработке.</b> Логику уже разобрал по переписке — здесь будет: объединение
-      нескольких выгрузок статистики (лимит строк у системы), замена нулей в OTS по
-      таблице «город × тип конструкции», подсчёт факта только по «УСПЕШНЫМ» показам,
-      план из МП с пересчётом на сутки, и итоговый отчёт на 5 листах
-      (свод / Отчёт / свод по минутам / Отчёт по минутам / Лист2) — как в примерах, что уже
-      делались вручную через чат.
+
+    <p class="subtitle">
+      Факт только по «УСПЕШНЫМ» показам, контакты — из столбца OTS (с заменой нулей по
+      таблице ниже), план — из МП с пересчётом на сутки. На выходе — 5 листов: свод /
+      Отчет / свод по минутам / Отчет по минутам / Лист2, как в отчётах клиенту.
+    </p>
+
+    <div class="section-label">Название кампании (для отчёта)</div>
+    <div class="field">
+      <input type="text" id="maCampaign" placeholder="Например: Яндекс GO Тариф Вместе">
     </div>
-    <div class="note warn" style="margin-top:12px">
-      Чтобы собрать инструмент точно под нужный вид, нужны примеры файлов:
-      <ul style="margin:8px 0 0 18px; padding:0;">
-        <li>готовый отчёт-образец (5 листов) — понять точную раскладку столбцов и формул;</li>
-        <li>один файл сырой статистики («Статистика …») — понять формат выгрузки;</li>
-        <li>один файл плана (МП) — понять, как выглядят прогнозные цифры по городам.</li>
-      </ul>
-      Пришлите — доделаю.
+
+    <div class="section-label">Статистика показов</div>
+    <div class="drop" id="maDropStat">
+      <div class="icon">📊</div>
+      <div class="main" id="maStatMain">Файлы .xlsx или .zip с несколькими частями</div>
+      <div class="sub" id="maStatSub">систему ограничивает число строк на выгрузку — можно сразу все части</div>
+    </div>
+    <input type="file" id="maFileStat" accept=".xlsx,.xlsm,.zip" multiple>
+    <div id="maStatList" style="display:none;margin-top:12px"></div>
+
+    <div class="section-label" style="margin-top:20px">План (МП)</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer">
+      <input type="checkbox" id="maNoPlan" style="width:auto">
+      <span>Без плана — только факт, без «% выполнения» (как для клиентов без расчёта)</span>
+    </label>
+    <div class="drop" id="maDropPlan">
+      <div class="icon">📐</div>
+      <div class="main" id="maPlanMain">Файл .xlsx с планом по городам</div>
+      <div class="sub" id="maPlanSub">ищет «Количество дней» и таблицу «Город / Прогноз…» — сама позиция не важна</div>
+    </div>
+    <input type="file" id="maFilePlan" accept=".xlsx,.xlsm">
+
+    <div class="section-label" style="margin-top:20px">Замена нулей в OTS</div>
+    <div class="hint" style="margin:-4px 0 10px">
+      Часть экранов передаёт 0 вместо реального OTS. Если для пары «город × тип
+      конструкции» ниже задано значение — 0 заменяется на него; для остальных пар
+      0 остаётся 0. Таблица разовая для каждой кампании — присылает клиент/оператор.
+    </div>
+    <div id="maZeroRows"></div>
+    <button class="btn ghost" id="maZeroAdd" type="button" style="margin-top:6px">+ строка</button>
+
+    <div class="section-label" style="margin-top:20px">Диапазон дат — необязательно</div>
+    <div class="hint" style="margin:-4px 0 10px">По умолчанию — весь период, что есть в статистике. Если система выгружает
+      данные за месяцы вперёд «на всякий случай» — здесь можно обрезать до нужных дат
+      (например, отдать клиенту только закрытый месяц).</div>
+    <div class="grid2">
+      <div class="field"><label>С</label><input type="date" id="maDateFrom"></div>
+      <div class="field"><label>По</label><input type="date" id="maDateTo"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="maGo" disabled>Собрать отчёт</button>
+      <button class="btn ghost" id="maReset" style="display:none">Сбросить</button>
+    </div>
+
+    <div class="progress" id="maProg">
+      <div class="bar" id="maBar"><i></i></div>
+      <div class="progress-text" id="maProgText"></div>
+    </div>
+    <div class="log" id="maLog"></div>
+
+    <div class="results" id="maResults">
+      <div class="divider"></div>
+      <div class="section-label">Результат</div>
+      <div class="tiles" id="maTiles"></div>
+      <div id="maNotes"></div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="maDl">Скачать отчёт .xlsx</button>
+      </div>
     </div>
   </div>
 
@@ -128,9 +183,12 @@
 /*__INJECT:inventory-core.js__*/
 </script>
 <script>
+/*__INJECT:masterad-core.js__*/
+</script>
+<script>
 (function () {
 'use strict';
-const L = window.OmniLib, I = window.InventoryCore;
+const L = window.OmniLib, I = window.InventoryCore, M = window.MasterAdCore;
 const $ = function (id) { return document.getElementById(id); };
 
 /* ── переключатель режимов ── */
@@ -324,6 +382,235 @@ $('dlAll').addEventListener('click', async function () {
   const files = [];
   for (const r of ok) files.push({ name: r.name, bytes: new Uint8Array(await r.blob.arrayBuffer()) });
   L.download(L.zipWrite(files), 'отчётность — инвенто.zip');
+});
+
+/* ═══════════════════════════════ MASTERAD ══════════════════════════════ */
+
+let maStatInput = null, maPlanFile = null, maResultBlob = null;
+
+/* ── замена нулей OTS: редактируемые строки ── */
+/* Значения по переписке для кампании «Яндекс GO Тариф Вместе» — стартовый
+   набор, чтобы не вбивать заново при повторной сборке того же отчёта;
+   для другой кампании их надо стереть/заменить своими (таблица разовая). */
+let maZero = [
+  { city: 'Казань', format: 'CITY_FORMAT', value: 16 },
+  { city: 'Казань', format: 'BILLBOARD', value: 50 },
+  { city: 'Нижний Новгород', format: 'CITY_FORMAT', value: 25 },
+  { city: 'Нижний Новгород', format: 'BILLBOARD', value: 33 },
+  { city: 'Санкт-Петербург', format: 'BILLBOARD', value: 34 },
+  { city: 'Химки', format: 'CITY_BOARD', value: 73 }
+];
+
+function renderMaZero() {
+  $('maZeroRows').innerHTML = maZero.map(function (z, i) {
+    return '<div class="grid3" style="margin-bottom:8px;align-items:end">' +
+      '<div class="field" style="margin-bottom:0"><label>Город</label>' +
+        '<input type="text" data-zi="' + i + '" data-zf="city" value="' + esc(z.city) + '"></div>' +
+      '<div class="field" style="margin-bottom:0"><label>Тип конструкции</label>' +
+        '<input type="text" data-zi="' + i + '" data-zf="format" value="' + esc(z.format) + '" placeholder="BILLBOARD"></div>' +
+      '<div style="display:flex;gap:8px;align-items:end">' +
+        '<div class="field" style="margin-bottom:0;flex:1"><label>Значение</label>' +
+          '<input type="number" data-zi="' + i + '" data-zf="value" value="' + z.value + '"></div>' +
+        '<a href="#" data-zrm="' + i + '" style="padding-bottom:11px" title="убрать строку">✕</a>' +
+      '</div></div>';
+  }).join('');
+  [...$('maZeroRows').querySelectorAll('input[data-zi]')].forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      const i = parseInt(inp.dataset.zi, 10), f = inp.dataset.zf;
+      maZero[i][f] = (f === 'value') ? (parseFloat(inp.value) || 0) : inp.value;
+    });
+  });
+  [...$('maZeroRows').querySelectorAll('a[data-zrm]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      maZero.splice(parseInt(a.dataset.zrm, 10), 1);
+      renderMaZero();
+    });
+  });
+}
+renderMaZero();
+$('maZeroAdd').addEventListener('click', function () {
+  maZero.push({ city: '', format: '', value: 0 });
+  renderMaZero();
+});
+
+/* ── статистика: файлы или zip ── */
+const maDropStat = $('maDropStat'), maFileStat = $('maFileStat');
+maDropStat.addEventListener('click', function () { maFileStat.click(); });
+maDropStat.addEventListener('dragover', function (e) { e.preventDefault(); maDropStat.classList.add('over'); });
+maDropStat.addEventListener('dragleave', function () { maDropStat.classList.remove('over'); });
+maDropStat.addEventListener('drop', function (e) {
+  e.preventDefault(); maDropStat.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) setMaStat([].slice.call(e.dataTransfer.files));
+});
+maFileStat.addEventListener('change', function () {
+  if (maFileStat.files && maFileStat.files.length) setMaStat([].slice.call(maFileStat.files));
+});
+
+function setMaStat(files) {
+  const good = files.filter(function (f) { return /\.(xlsx|xlsm|zip)$/i.test(f.name); });
+  if (!good.length) { maLog('Нужны файлы .xlsx или .zip', 'err'); return; }
+  if (good.length === 1 && /\.zip$/i.test(good[0].name)) {
+    maStatInput = { kind: 'zip', source: L.blobSource(good[0]), label: good[0].name, bytes: good[0].size };
+  } else {
+    maStatInput = { kind: 'files', files: good, label: good.length + ' файлов',
+                    bytes: good.reduce(function (a, f) { return a + f.size; }, 0) };
+  }
+  maDropStat.classList.add('filled');
+  $('maStatMain').textContent = maStatInput.label;
+  $('maStatSub').textContent = fmtSizeMa(maStatInput.bytes);
+  updateMaGo();
+}
+function fmtSizeMa(b) {
+  if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' ГБ';
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' МБ';
+  return (b / 1024).toFixed(0) + ' КБ';
+}
+
+/* ── план ── */
+const maDropPlan = $('maDropPlan'), maFilePlan = $('maFilePlan'), maNoPlan = $('maNoPlan');
+maDropPlan.addEventListener('click', function () { if (!maNoPlan.checked) maFilePlan.click(); });
+maDropPlan.addEventListener('dragover', function (e) { e.preventDefault(); if (!maNoPlan.checked) maDropPlan.classList.add('over'); });
+maDropPlan.addEventListener('dragleave', function () { maDropPlan.classList.remove('over'); });
+maDropPlan.addEventListener('drop', function (e) {
+  e.preventDefault(); maDropPlan.classList.remove('over');
+  if (maNoPlan.checked) return;
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) setMaPlan(e.dataTransfer.files[0]);
+});
+maFilePlan.addEventListener('change', function () {
+  if (maFilePlan.files && maFilePlan.files[0]) setMaPlan(maFilePlan.files[0]);
+});
+function setMaPlan(f) {
+  if (!/\.(xlsx|xlsm)$/i.test(f.name)) { maLog('Нужен файл .xlsx', 'err'); return; }
+  maPlanFile = f;
+  maDropPlan.classList.add('filled');
+  $('maPlanMain').textContent = f.name;
+  $('maPlanSub').textContent = fmtSizeMa(f.size);
+  updateMaGo();
+}
+maNoPlan.addEventListener('change', function () {
+  maDropPlan.style.opacity = maNoPlan.checked ? .45 : 1;
+  maDropPlan.style.pointerEvents = maNoPlan.checked ? 'none' : '';
+  updateMaGo();
+});
+
+function updateMaGo() {
+  $('maGo').disabled = !(maStatInput && (maNoPlan.checked || maPlanFile));
+}
+
+/* ── лог/прогресс (свои элементы, тот же стиль) ── */
+function maLog(msg, kind) {
+  const el = $('maLog');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function maProgress(on, text, frac) {
+  $('maProg').classList.toggle('on', !!on);
+  if (text !== undefined) $('maProgText').textContent = text;
+  if (frac !== undefined && frac !== null) {
+    $('maBar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
+}
+
+/* ── запуск ── */
+$('maGo').addEventListener('click', async function () {
+  if (!maStatInput) return;
+  $('maGo').disabled = true;
+  $('maResults').classList.remove('on');
+  $('maLog').innerHTML = ''; $('maLog').classList.remove('on');
+  maProgress(true, '', 0);
+
+  try {
+    let plan = null;
+    if (!maNoPlan.checked) {
+      maProgress(true, 'Читаю план…', null);
+      plan = await M.loadPlan(maPlanFile);
+      maLog('План: ' + plan.days + ' дней, города — ' + plan.cityOrder.join(', '), 'ok');
+    }
+
+    maProgress(true, 'Читаю статистику…', null);
+    const t0 = Date.now();
+    const { rawRows, skipped } = await M.collectStatRows(maStatInput, function (i, n, name) {
+      maProgress(true, 'Читаю статистику: файл ' + i + (n ? ' из ' + n : '') + ' — ' + name, n ? i / n : null);
+    });
+    maLog('Строк прочитано: ' + rawRows.length + ' за ' + ((Date.now() - t0) / 1000).toFixed(1) + ' с', 'ok');
+    if (skipped.length) skipped.forEach(function (s) { maLog(s, 'warn'); });
+    if (!rawRows.length) throw new Error('не нашёл ни одной строки данных в статистике');
+
+    const zeroMap = new Map();
+    for (const z of maZero) {
+      if (!z.city || !z.format) continue;
+      zeroMap.set(M.normFormatKey(z.city, z.format), Number(z.value) || 0);
+    }
+
+    const dateFrom = $('maDateFrom').value ? new Date($('maDateFrom').value + 'T00:00:00') : null;
+    const dateTo = $('maDateTo').value ? new Date($('maDateTo').value + 'T00:00:00') : null;
+
+    maProgress(true, 'Считаю факты…', null);
+    const { facts, stats } = M.buildFacts(rawRows, { zeroMap: zeroMap, dateFrom: dateFrom, dateTo: dateTo });
+    maLog('Факты: всего строк ' + stats.total + ', успешных ' + stats.success +
+      ', отклонённых ' + stats.rejected + (stats.outOfRange ? ', вне диапазона дат ' + stats.outOfRange : ''), 'ok');
+    if (!facts.length) throw new Error('после фильтра «УСПЕШНЫЙ» и диапазона дат не осталось ни одной строки');
+
+    maProgress(true, 'Собираю отчёт…', null);
+    const campaignName = $('maCampaign').value.trim();
+    const rep = M.buildReport(facts, plan, { campaignName: campaignName });
+    maLog('Отчёт собран: ' + rep.stats.facts + ' показов, ' + rep.stats.cities + ' город(а/ов)' +
+      (rep.stats.hasPlan ? ', выполнение — ' + pct(rep.stats.budgetRatio) + '% бюджет / ' +
+        pct(rep.stats.otsRatio) + '% OTS' : ' (без плана)'), 'ok');
+
+    maProgress(true, 'Упаковываю xlsx…', 0);
+    maResultBlob = await L.writeXlsxDeflate(rep.sheets, function (i, n) {
+      maProgress(true, 'Упаковываю xlsx: ' + i + ' из ' + n, i / n);
+    });
+    maProgress(false);
+    renderMaResults(rep.stats);
+    $('maReset').style.display = '';
+  } catch (e) {
+    maProgress(false);
+    maLog('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('maGo').disabled = false;
+  }
+});
+
+function pct(r) { return r === null || r === undefined ? '—' : (r * 100).toFixed(1); }
+
+function renderMaResults(stats) {
+  $('maTiles').innerHTML =
+    tile(stats.facts.toLocaleString('ru-RU'), 'успешных показов', 'good') +
+    tile(stats.cities, 'город(а/ов)') +
+    tile(Math.round(stats.factBudget).toLocaleString('ru-RU') + ' ₽', 'потрачено') +
+    tile(Math.round(stats.factOts).toLocaleString('ru-RU'), 'контактов (OTS)') +
+    (stats.hasPlan ? tile(pct(stats.budgetRatio) + '%', 'бюджет к плану', stats.budgetRatio < 0.5 ? 'warn' : '') : '') +
+    (stats.hasPlan ? tile(pct(stats.otsRatio) + '%', 'OTS к плану', stats.otsRatio < 0.5 ? 'warn' : '') : '');
+
+  $('maNotes').innerHTML = stats.hasPlan ? '' :
+    '<div class="note info">Без плана — лист «свод» только с фактом, без «% выполнения» (как для клиентов без расчёта).</div>';
+  $('maResults').classList.add('on');
+}
+
+$('maDl').addEventListener('click', function () {
+  if (!maResultBlob) return;
+  const name = ($('maCampaign').value.trim() || 'Отчет') + '.xlsx';
+  L.download(maResultBlob, name);
+});
+
+$('maReset').addEventListener('click', function () {
+  maStatInput = null; maPlanFile = null; maResultBlob = null;
+  maFileStat.value = ''; maFilePlan.value = '';
+  $('maResults').classList.remove('on');
+  $('maLog').innerHTML = ''; $('maLog').classList.remove('on');
+  maDropStat.classList.remove('filled'); maDropPlan.classList.remove('filled');
+  $('maStatMain').textContent = 'Файлы .xlsx или .zip с несколькими частями';
+  $('maStatSub').textContent = 'систему ограничивает число строк на выгрузку — можно сразу все части';
+  $('maPlanMain').textContent = 'Файл .xlsx с планом по городам';
+  $('maPlanSub').textContent = 'ищет «Количество дней» и таблицу «Город / Прогноз…» — сама позиция не важна';
+  $('maReset').style.display = 'none';
+  updateMaGo();
 });
 
 })();

@@ -112,13 +112,14 @@ h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; 
 label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
 .hint { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
 
-input[type=text], input[type=number], select {
+input[type=text], input[type=number], input[type=date], select {
   width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
   border-radius: 10px; color: var(--text); font-size: 14px;
   padding: 10px 13px; outline: none; transition: border-color .15s;
   font-family: inherit;
 }
-input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--accent); }
+input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, select:focus { border-color: var(--accent); }
+input[type=date] { color-scheme: light dark; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
 input::placeholder { color: var(--dim); }

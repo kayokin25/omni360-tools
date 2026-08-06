@@ -119,13 +119,14 @@ h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; 
 label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
 .hint { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
 
-input[type=text], input[type=number], select {
+input[type=text], input[type=number], input[type=date], select {
   width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
   border-radius: 10px; color: var(--text); font-size: 14px;
   padding: 10px 13px; outline: none; transition: border-color .15s;
   font-family: inherit;
 }
-input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--accent); }
+input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, select:focus { border-color: var(--accent); }
+input[type=date] { color-scheme: light dark; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
 input::placeholder { color: var(--dim); }
@@ -365,7 +366,7 @@ root.OmniTheme = {
 
   <div class="modes" id="modes">
     <button class="mode-btn on" data-mode="inventory">Инвенто</button>
-    <button class="mode-btn" data-mode="masterad">MasterAd <span class="soon">скоро</span></button>
+    <button class="mode-btn" data-mode="masterad">MasterAd</button>
   </div>
 
   <!-- ══════════════════════════ ИНВЕНТО ══════════════════════════ -->
@@ -419,24 +420,79 @@ root.OmniTheme = {
     </div>
   </div>
 
-  <!-- ══════════════════════════ MASTERAD (заглушка) ══════════════════════════ -->
+  <!-- ══════════════════════════ MASTERAD ══════════════════════════ -->
   <div class="mode-panel" id="panel-masterad">
-    <div class="note info">
-      <b>В разработке.</b> Логику уже разобрал по переписке — здесь будет: объединение
-      нескольких выгрузок статистики (лимит строк у системы), замена нулей в OTS по
-      таблице «город × тип конструкции», подсчёт факта только по «УСПЕШНЫМ» показам,
-      план из МП с пересчётом на сутки, и итоговый отчёт на 5 листах
-      (свод / Отчёт / свод по минутам / Отчёт по минутам / Лист2) — как в примерах, что уже
-      делались вручную через чат.
+
+    <p class="subtitle">
+      Факт только по «УСПЕШНЫМ» показам, контакты — из столбца OTS (с заменой нулей по
+      таблице ниже), план — из МП с пересчётом на сутки. На выходе — 5 листов: свод /
+      Отчет / свод по минутам / Отчет по минутам / Лист2, как в отчётах клиенту.
+    </p>
+
+    <div class="section-label">Название кампании (для отчёта)</div>
+    <div class="field">
+      <input type="text" id="maCampaign" placeholder="Например: Яндекс GO Тариф Вместе">
     </div>
-    <div class="note warn" style="margin-top:12px">
-      Чтобы собрать инструмент точно под нужный вид, нужны примеры файлов:
-      <ul style="margin:8px 0 0 18px; padding:0;">
-        <li>готовый отчёт-образец (5 листов) — понять точную раскладку столбцов и формул;</li>
-        <li>один файл сырой статистики («Статистика …») — понять формат выгрузки;</li>
-        <li>один файл плана (МП) — понять, как выглядят прогнозные цифры по городам.</li>
-      </ul>
-      Пришлите — доделаю.
+
+    <div class="section-label">Статистика показов</div>
+    <div class="drop" id="maDropStat">
+      <div class="icon">📊</div>
+      <div class="main" id="maStatMain">Файлы .xlsx или .zip с несколькими частями</div>
+      <div class="sub" id="maStatSub">систему ограничивает число строк на выгрузку — можно сразу все части</div>
+    </div>
+    <input type="file" id="maFileStat" accept=".xlsx,.xlsm,.zip" multiple>
+    <div id="maStatList" style="display:none;margin-top:12px"></div>
+
+    <div class="section-label" style="margin-top:20px">План (МП)</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer">
+      <input type="checkbox" id="maNoPlan" style="width:auto">
+      <span>Без плана — только факт, без «% выполнения» (как для клиентов без расчёта)</span>
+    </label>
+    <div class="drop" id="maDropPlan">
+      <div class="icon">📐</div>
+      <div class="main" id="maPlanMain">Файл .xlsx с планом по городам</div>
+      <div class="sub" id="maPlanSub">ищет «Количество дней» и таблицу «Город / Прогноз…» — сама позиция не важна</div>
+    </div>
+    <input type="file" id="maFilePlan" accept=".xlsx,.xlsm">
+
+    <div class="section-label" style="margin-top:20px">Замена нулей в OTS</div>
+    <div class="hint" style="margin:-4px 0 10px">
+      Часть экранов передаёт 0 вместо реального OTS. Если для пары «город × тип
+      конструкции» ниже задано значение — 0 заменяется на него; для остальных пар
+      0 остаётся 0. Таблица разовая для каждой кампании — присылает клиент/оператор.
+    </div>
+    <div id="maZeroRows"></div>
+    <button class="btn ghost" id="maZeroAdd" type="button" style="margin-top:6px">+ строка</button>
+
+    <div class="section-label" style="margin-top:20px">Диапазон дат — необязательно</div>
+    <div class="hint" style="margin:-4px 0 10px">По умолчанию — весь период, что есть в статистике. Если система выгружает
+      данные за месяцы вперёд «на всякий случай» — здесь можно обрезать до нужных дат
+      (например, отдать клиенту только закрытый месяц).</div>
+    <div class="grid2">
+      <div class="field"><label>С</label><input type="date" id="maDateFrom"></div>
+      <div class="field"><label>По</label><input type="date" id="maDateTo"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="maGo" disabled>Собрать отчёт</button>
+      <button class="btn ghost" id="maReset" style="display:none">Сбросить</button>
+    </div>
+
+    <div class="progress" id="maProg">
+      <div class="bar" id="maBar"><i></i></div>
+      <div class="progress-text" id="maProgText"></div>
+    </div>
+    <div class="log" id="maLog"></div>
+
+    <div class="results" id="maResults">
+      <div class="divider"></div>
+      <div class="section-label">Результат</div>
+      <div class="tiles" id="maTiles"></div>
+      <div id="maNotes"></div>
+
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="maDl">Скачать отчёт .xlsx</button>
+      </div>
     </div>
   </div>
 
@@ -772,6 +828,82 @@ function zipWrite(files) {
   return new Blob(parts.concat(central, [new Uint8Array(eocd)]), { type: 'application/zip' });
 }
 
+/* Симметрично inflateRaw — штатный CompressionStream, тот же 'deflate-raw'. */
+async function deflateRaw(bytes) {
+  const cs = new CompressionStream('deflate-raw');
+  const w = cs.writable.getWriter();
+  w.write(bytes); w.close();
+  const parts = [];
+  let total = 0;
+  const r = cs.readable.getReader();
+  for (;;) {
+    const { done, value } = await r.read();
+    if (done) break;
+    parts.push(value); total += value.length;
+  }
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/* Та же запись zip, что и zipWrite, но каждая запись — DEFLATE, а не STORED.
+   Асинхронно (CompressionStream — потоковый API); для по-настоящему больших
+   файлов (сотни тысяч строк текста) сжатие даёт разы, а не проценты — XML
+   этого вида (много повторяющихся тегов/значений) на этом и держится. */
+async function zipWriteDeflate(files, onProgress) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  let i = 0;
+
+  for (const f of files) {
+    const nameBytes = encodeUtf8(f.name);
+    const rawBytes = f.blob || f.bytes;
+    const size = f.size !== undefined ? f.size : rawBytes.length;
+    const crc = f.crc !== undefined ? f.crc : crc32(rawBytes);
+    const compBytes = await deflateRaw(rawBytes);
+    i++;
+    if (onProgress) onProgress(i, files.length, f.name);
+
+    const lh = [];
+    w32(lh, 0x04034b50);
+    w16(lh, 20);
+    w16(lh, 0x0800);
+    w16(lh, 8);            // DEFLATE
+    w16(lh, 0); w16(lh, 0);
+    w32(lh, crc); w32(lh, compBytes.length); w32(lh, size);
+    w16(lh, nameBytes.length); w16(lh, 0);
+    const lhBytes = new Uint8Array(lh);
+    parts.push(lhBytes, nameBytes, compBytes);
+
+    const cd = [];
+    w32(cd, 0x02014b50);
+    w16(cd, 20); w16(cd, 20);
+    w16(cd, 0x0800); w16(cd, 8);
+    w16(cd, 0); w16(cd, 0);
+    w32(cd, crc); w32(cd, compBytes.length); w32(cd, size);
+    w16(cd, nameBytes.length); w16(cd, 0); w16(cd, 0);
+    w16(cd, 0); w16(cd, 0); w32(cd, 0);
+    w32(cd, offset);
+    central.push(new Uint8Array(cd), nameBytes);
+
+    offset += lhBytes.length + nameBytes.length + compBytes.length;
+  }
+
+  let cdSize = 0;
+  for (const c of central) cdSize += c.length;
+
+  const eocd = [];
+  w32(eocd, 0x06054b50);
+  w16(eocd, 0); w16(eocd, 0);
+  w16(eocd, files.length); w16(eocd, files.length);
+  w32(eocd, cdSize); w32(eocd, offset);
+  w16(eocd, 0);
+
+  return new Blob(parts.concat(central, [new Uint8Array(eocd)]), { type: 'application/zip' });
+}
+
 /* ─────────────────────── размеры видео из MP4/MOV ─────────────────────── */
 
 const CONTAINER_BOXES = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'udta']);
@@ -877,6 +1009,16 @@ function escapeXml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c];
   // eslint-disable-next-line no-control-regex
   }).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+}
+
+/* JS Date → серийный номер даты Excel (дней с 1899-12-30, тот самый
+   исторический баг с несуществующим 29 февраля 1900 — Excel считает так
+   всегда, и это учтено самой точкой отсчёта). Даты собираются и здесь, и на
+   входе одинаково через локальный конструктор Date(y, m, d) — разница часовых
+   поясов и переходов на летнее время при этом взаимно гасится. */
+function dateToSerial(d) {
+  const epoch = new Date(1899, 11, 30);
+  return Math.round((d.getTime() - epoch.getTime()) / 86400000);
 }
 
 /* ──────────────────────────── XLSX: чтение ────────────────────────────── */
@@ -1017,7 +1159,12 @@ async function readXlsx(source) {
 
 const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
 '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-'<numFmts count="1"><numFmt numFmtId="164" formatCode="0.000000"/></numFmts>' +
+'<numFmts count="4">' +
+  '<numFmt numFmtId="164" formatCode="0.000000"/>' +
+  '<numFmt numFmtId="165" formatCode="dd.mm.yyyy"/>' +
+  '<numFmt numFmtId="166" formatCode="#,##0.00"/>' +
+  '<numFmt numFmtId="167" formatCode="#,##0"/>' +
+'</numFmts>' +
 '<fonts count="5">' +
   '<font><sz val="10"/><name val="Arial"/></font>' +
   '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>' +
@@ -1025,12 +1172,13 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<font><sz val="10"/><name val="Arial"/></font>' +
   '<font><b/><sz val="10"/><name val="Arial"/></font>' +
 '</fonts>' +
-'<fills count="5">' +
+'<fills count="6">' +
   '<fill><patternFill patternType="none"/></fill>' +
   '<fill><patternFill patternType="gray125"/></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FF2F3B52"/><bgColor indexed="64"/></patternFill></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FFFCE4E4"/><bgColor indexed="64"/></patternFill></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FFE7F4E4"/><bgColor indexed="64"/></patternFill></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill>' +
 '</fills>' +
 '<borders count="2">' +
   '<border><left/><right/><top/><bottom/><diagonal/></border>' +
@@ -1038,7 +1186,7 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border>' +
 '</borders>' +
 '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-'<cellXfs count="8">' +
+'<cellXfs count="12">' +
   '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
   '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
   '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
@@ -1047,11 +1195,16 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
   '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
   '<xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+  '<xf numFmtId="0" fontId="4" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+  '<xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
 '</cellXfs>' +
 '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
 '</styleSheet>';
 
-const S = { PLAIN: 0, HEADER: 1, BODY: 2, WARN: 3, OK: 4, LINK: 5, NUM6: 6, GROUP: 7 };
+const S = { PLAIN: 0, HEADER: 1, BODY: 2, WARN: 3, OK: 4, LINK: 5, NUM6: 6, GROUP: 7,
+  DATE: 8, CITYHDR: 9, MONEY: 10, INT: 11 };
 
 function indexToCol(i) {
   let s = '';
@@ -1112,7 +1265,9 @@ function sheetToXml(sheet) {
       const ref = indexToCol(ci) + rn;
       const st = obj.s === undefined ? (ri === 0 ? S.HEADER : S.BODY) : obj.s;
       if (obj.link) hyperlinks.push({ ref: ref, url: obj.link });
-      if (typeof v === 'number' && isFinite(v)) {
+      if (v instanceof Date) {
+        x += '<c r="' + ref + '" s="' + st + '"><v>' + dateToSerial(v) + '</v></c>';
+      } else if (typeof v === 'number' && isFinite(v)) {
         x += '<c r="' + ref + '" s="' + st + '"><v>' + v + '</v></c>';
       } else if (typeof v === 'boolean') {
         x += '<c r="' + ref + '" s="' + st + '" t="b"><v>' + (v ? 1 : 0) + '</v></c>';
@@ -1136,8 +1291,10 @@ function sheetToXml(sheet) {
   return { xml: x, hyperlinks: hyperlinks };
 }
 
-/* sheets: [{name, cols, freeze, rows}] → Blob (.xlsx) */
-function writeXlsx(sheets) {
+/* sheets: [{name, cols, freeze, rows}] → список файлов пакета xlsx
+   (общее для writeXlsx и writeXlsxDeflate — отличаются только тем, как
+   потом упаковывается zip: STORED или DEFLATE). */
+function buildXlsxFiles(sheets) {
   const files = [];
   const add = function (name, str) { files.push({ name: name, bytes: encodeUtf8(str) }); };
 
@@ -1199,7 +1356,27 @@ function writeXlsx(sheets) {
     }
   });
 
-  const blob = zipWrite(files);
+  return files;
+}
+
+/* sheets → Blob (.xlsx), ZIP без сжатия (STORED) — быстро, но крупные отчёты
+   (сотни тысяч строк) выходят раздутыми: XML-текст сжимается в разы, а тут
+   он идёт как есть. Годится для отчётов на тысячи строк — как и раньше. */
+function writeXlsx(sheets) {
+  const blob = zipWrite(buildXlsxFiles(sheets));
+  return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+/* То же самое, но ZIP-запись через DEFLATE (штатный CompressionStream —
+   симметрично inflateRaw/DecompressionStream, которым читаются архивы).
+   Нужно только там, где иначе файл выходит непригодным для скачивания —
+   отчёт MasterAd на 250 000+ строк без сжатия весит под 500 МБ, со сжатием —
+   в районе размера исходников. Асинхронно (Compression Stream — потоковый
+   API), поэтому отдельная функция, а не флаг у writeXlsx: иначе пришлось бы
+   переводить на await всех существующих вызывающих (creatives/azimuth/
+   инвенто — там файлы маленькие, им незачем ждать сжатия). */
+async function writeXlsxDeflate(sheets, onProgress) {
+  const blob = await zipWriteDeflate(buildXlsxFiles(sheets), onProgress);
   return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
@@ -1254,8 +1431,9 @@ function download(blob, filename) {
 root.OmniLib = {
   blobSource: blobSource, bytesSource: bytesSource,
   zipOpen: zipOpen, zipRead: zipRead, zipReadHeadTail: zipReadHeadTail, zipWrite: zipWrite,
+  zipWriteDeflate: zipWriteDeflate, deflateRaw: deflateRaw,
   inflateRaw: inflateRaw, crc32: crc32,
-  readXlsx: readXlsx, writeXlsx: writeXlsx, S: S,
+  readXlsx: readXlsx, writeXlsx: writeXlsx, writeXlsxDeflate: writeXlsxDeflate, S: S,
   findStsdDims: findStsdDims, scanStsdDims: scanStsdDims, dimsFromHeadTail: dimsFromHeadTail,
   normName: normName, normRes: normRes, parseRes: parseRes, normAspect: normAspect,
   reduceRatio: reduceRatio, cellStr: cellStr, download: download,
@@ -1673,9 +1851,511 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
 
 </script>
 <script>
+/* ============================================================================
+   MasterAd — сборка отчёта по фактическим показам + плану (МП).
+
+   Вход: несколько файлов «Статистика показов» (выгрузка системы, разбитая на
+   части из-за лимита строк — возможен и .zip со всеми частями сразу), один
+   файл плана (МП) — необязателен, без него отчёт строится без плановых
+   колонок и «% выполнения» (как для клиентов без расчёта, см. кейс Atera).
+
+   Правила подобраны по переписке с клиентом (несколько сессий работы над
+   этим же отчётом «Яндекс Go Вместе»):
+     - факт — только строки со статусом «УСПЕШНЫЙ» (отклонённые выбрасываются);
+     - «Количество выходов» = 1 на строку (каждая строка — один показ);
+     - «Количество контактов» = столбец OTS; там, где экран передаёт 0,
+       0 заменяется на постоянное значение по паре (город, тип конструкции) —
+       таблица замен приходит от пользователя, единой для всех кампаний нет;
+     - «Потрачено средств» = «Стоимость показа клиента», а если такого столбца
+       в выгрузке нет — «Стоимость успешного показа» (в реальных данных они
+       совпадают, но не все выгрузки содержат оба столбца);
+     - план (МП) даёт ИТОГО по городу на весь период; суточный план — это
+       просто «итого / количество дней» (само число дней — из ячейки
+       «Количество дней» в МП, у него нет фиксированной позиции).
+
+   Выходной файл — 5 листов, как в примерах отчётов клиенту:
+     свод / Отчет / свод по минутам / Отчет по минутам / Лист2.
+   «свод» и «свод по минутам» в оригинале оформлены КАК СВОДНАЯ ТАБЛИЦА Excel
+   (текст «Названия строк»/«Названия столбцов»), но на самом деле это обычные
+   значения, посчитанные один раз и записанные как текст — не настоящий
+   pivot-объект OOXML (тот бы требовал отдельного pivotCache/pivotTable XML).
+   Здесь эта же идея: посчитано один раз в JS, никаких формул.
+
+   Зависит от OmniLib.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const L = root.OmniLib;
+
+const DEFAULTS = {
+  successStatus: 'УСПЕШНЫЙ',
+  headerScanRows: 10,
+  typeMap: {
+    BILLBOARD: 'Щит',
+    CITYFORMAT: 'Ситиформат',
+    CITYBOARD: 'Ситиборд',
+    SUPERSITE: 'Суперсайт'
+  }
+};
+
+/* ─────────────────────────────── утилиты ───────────────────────────────── */
+
+function normKey(s) {
+  return String(s === null || s === undefined ? '' : s).trim().toLowerCase();
+}
+function normFormatKey(city, format) {
+  return normKey(city) + ' ' + String(format || '').trim().toUpperCase().replace(/_/g, '');
+}
+function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+/* '17.07.2026' -> {y,m,d}: в выгрузке формат ДД.ММ.ГГГГ — день первый. */
+function parseRuDate(s) {
+  const m = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(s || ''));
+  if (!m) return null;
+  return { y: parseInt(m[3], 10), m: parseInt(m[2], 10), d: parseInt(m[1], 10) };
+}
+/* '16:25:14' -> {h,mi,s} */
+function parseTime(s) {
+  const m = /(\d{1,2}):(\d{1,2}):(\d{1,2})/.exec(String(s || ''));
+  if (!m) return null;
+  return { h: parseInt(m[1], 10), mi: parseInt(m[2], 10), s: parseInt(m[3], 10) };
+}
+
+/* Тот самый формат «  H:MM:SS» (два пробела, час БЕЗ ведущего нуля) — вот
+   почему «Время выхода мин» (первые 7 символов) для часа 6 даёт «  6:00:»
+   (с двоеточием на конце), а для часа 16 — «  16:25» (без двоеточия: у
+   двузначного часа те же 7 символов кончаются на последней цифре минут). */
+function timeToStr(t) {
+  return '  ' + t.h + ':' + pad2(t.mi) + ':' + pad2(t.s);
+}
+
+/* Ключ сортировки для «  H:MM:...» независимо от одно-/двузначного часа. */
+function timeMinSortKey(str) {
+  const m = /(\d+):(\d+)/.exec(str);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0;
+}
+
+/* Ищет строку-шапку: все токены из need должны встретиться (без учёта
+   регистра) СРЕДИ значений одной строки, в первых maxRows строках. */
+function findHeaderRow(rows, need, maxRows) {
+  const needLower = need.map(normKey);
+  const lim = Math.min(rows.length, maxRows);
+  for (let r = 0; r < lim; r++) {
+    const vals = (rows[r] || []).map(normKey);
+    if (needLower.every(function (n) { return vals.indexOf(n) >= 0; })) return r;
+  }
+  return -1;
+}
+function colIndexByHeader(headerRow, names) {
+  const vals = headerRow.map(normKey);
+  for (const name of names) {
+    const i = vals.indexOf(normKey(name));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+
+/* ───────────────────────── чтение статистики ───────────────────────────── */
+
+const REQUIRED_HEADERS = ['GID', 'Результат запроса'];
+
+async function readOneStatSheet(source, name, opt) {
+  const wb = await L.readXlsx(source);
+  const sheet = wb.sheets[0];
+  if (!sheet) return { skipped: name + ': в файле нет листов' };
+  const headerIdx = findHeaderRow(sheet.rows, REQUIRED_HEADERS, opt.headerScanRows);
+  if (headerIdx < 0) return { skipped: name + ': не нашёл шапку со столбцами GID/«Результат запроса»' };
+  const header = sheet.rows[headerIdx];
+  const col = {
+    dateLocal: colIndexByHeader(header, ['Местная дата показа', 'Дата показа']),
+    timeLocal: colIndexByHeader(header, ['Местное время показа', 'Время показа']),
+    city: colIndexByHeader(header, ['Город']),
+    status: colIndexByHeader(header, ['Результат запроса', 'Результат']),
+    ots: colIndexByHeader(header, ['OTS']),
+    costClient: colIndexByHeader(header, ['Стоимость показа клиента']),
+    costOp: colIndexByHeader(header, ['Стоимость успешного показа']),
+    gid: colIndexByHeader(header, ['GID']),
+    address: colIndexByHeader(header, ['Адрес']),
+    format: colIndexByHeader(header, ['Формат', 'Формат экрана'])
+  };
+  const missing = ['dateLocal', 'timeLocal', 'city', 'status', 'gid', 'address', 'format']
+    .filter(function (k) { return col[k] < 0; });
+  if (missing.length) return { skipped: name + ': не нашёл столбцы — ' + missing.join(', ') };
+
+  return { rows: sheet.rows, dataStart: headerIdx + 1, col: col };
+}
+
+/* Разбирает один файл/архив источника в «сырые» строки (ещё без фильтра
+   по статусу и без подстановки нулей — это соседняя функция buildFacts,
+   чтобы правило замены можно было поменять и пересчитать без повторного
+   чтения файлов). */
+async function collectStatRows(input, onProgress) {
+  const out = []; // { row, col } — row это исходный массив значений
+  const skipped = [];
+
+  async function handleXlsxSource(source, label) {
+    const res = await readOneStatSheet(source, label, DEFAULTS);
+    if (res.skipped) { skipped.push(res.skipped); return; }
+    for (let r = res.dataStart; r < res.rows.length; r++) {
+      const row = res.rows[r];
+      if (!row || row.length === 0) continue;
+      out.push({ row: row, col: res.col });
+    }
+  }
+
+  if (input.kind === 'zip') {
+    const zip = await L.zipOpen(input.source);
+    let i = 0;
+    for (const e of zip.entries) {
+      if (e.isDir) continue;
+      if (!/\.xlsx?$/i.test(e.name)) continue;
+      i++;
+      if (onProgress) onProgress(i, zip.entries.length, e.name);
+      const bytes = await L.zipRead(zip, e);
+      await handleXlsxSource(L.bytesSource(bytes, e.name), e.name);
+    }
+  } else {
+    for (let i = 0; i < input.files.length; i++) {
+      const f = input.files[i];
+      if (onProgress) onProgress(i + 1, input.files.length, f.name);
+      await handleXlsxSource(L.blobSource(f), f.name);
+    }
+  }
+  return { rawRows: out, skipped: skipped };
+}
+
+/* ───────────────────────── факты (фильтр + правила) ────────────────────── */
+
+/* zeroMap: Map('город ФОРМАТ' -> число) — замена нуля в OTS.
+   typeMap: 'ФОРМАТ' (без подчёркиваний, верхний регистр) -> русское название.
+   dateFrom/dateTo: Date (по числу, без времени) или null — включительно. */
+function buildFacts(rawRows, options) {
+  const opt = options || {};
+  const zeroMap = opt.zeroMap || new Map();
+  const typeMap = Object.assign({}, DEFAULTS.typeMap, opt.typeMap || {});
+  const successStatus = opt.successStatus || DEFAULTS.successStatus;
+  const dateFrom = opt.dateFrom || null, dateTo = opt.dateTo || null;
+
+  const facts = [];
+  let rejected = 0, outOfRange = 0, badDate = 0;
+
+  for (const item of rawRows) {
+    const row = item.row, col = item.col;
+    const status = row[col.status];
+    if (normKey(status) !== normKey(successStatus)) { rejected++; continue; }
+
+    const dp = parseRuDate(row[col.dateLocal]);
+    const tp = parseTime(row[col.timeLocal]);
+    if (!dp) { badDate++; continue; }
+    const day = new Date(dp.y, dp.m - 1, dp.d);
+    if (dateFrom && day < dateFrom) { outOfRange++; continue; }
+    if (dateTo && day > dateTo) { outOfRange++; continue; }
+
+    const city = row[col.city] === null || row[col.city] === undefined ? '' : String(row[col.city]).trim();
+    const formatRaw = row[col.format] === null || row[col.format] === undefined ? '' : String(row[col.format]).trim();
+    const type = typeMap[formatRaw.toUpperCase().replace(/_/g, '')] || formatRaw;
+
+    let contacts = col.ots >= 0 ? row[col.ots] : null;
+    if (contacts === null || contacts === undefined || contacts === 0) {
+      const repl = zeroMap.get(normFormatKey(city, formatRaw));
+      contacts = (repl !== undefined && repl !== null) ? repl : (contacts || 0);
+    }
+
+    let spent = col.costClient >= 0 ? row[col.costClient] : null;
+    if (spent === null || spent === undefined) spent = col.costOp >= 0 ? row[col.costOp] : 0;
+    if (spent === null || spent === undefined) spent = 0;
+
+    facts.push({
+      city: city, type: type, formatRaw: formatRaw,
+      gid: row[col.gid] === null || row[col.gid] === undefined ? '' : String(row[col.gid]).trim(),
+      address: row[col.address] === null || row[col.address] === undefined ? '' : String(row[col.address]).trim(),
+      day: day,
+      hour: tp ? tp.h : 0,
+      timeStr: tp ? timeToStr(tp) : '',
+      timeMinStr: tp ? timeToStr(tp).slice(0, 7) : '',
+      contacts: Number(contacts) || 0,
+      spent: Number(spent) || 0
+    });
+  }
+
+  facts.sort(function (a, b) {
+    if (a.city !== b.city) return a.city < b.city ? -1 : 1;
+    const ad = a.day.getTime(), bd = b.day.getTime();
+    if (ad !== bd) return ad - bd;
+    if (a.gid !== b.gid) return a.gid < b.gid ? -1 : 1;
+    return a.timeStr < b.timeStr ? -1 : (a.timeStr > b.timeStr ? 1 : 0);
+  });
+
+  return {
+    facts: facts,
+    stats: { total: rawRows.length, success: facts.length, rejected: rejected, outOfRange: outOfRange, badDate: badDate }
+  };
+}
+
+/* ─────────────────────────────── план (МП) ──────────────────────────────── */
+
+async function loadPlan(file) {
+  const wb = await L.readXlsx(L.blobSource(file));
+  const sheet = wb.sheets.find(function (s) { return /мп/i.test(s.name); }) || wb.sheets[0];
+  if (!sheet) throw new Error('в файле плана нет листов');
+  const rows = sheet.rows;
+
+  let days = null;
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    const row = rows[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (normKey(row[c]) === normKey('Количество дней')) {
+        for (let c2 = c + 1; c2 < row.length; c2++) {
+          if (typeof row[c2] === 'number') { days = row[c2]; break; }
+        }
+      }
+    }
+    if (days) break;
+  }
+  if (!days) throw new Error('в плане не нашёл ячейку «Количество дней»');
+
+  const headerIdx = findHeaderRow(rows, ['Город', 'Прогноз бюджета'], 20);
+  if (headerIdx < 0) throw new Error('в плане не нашёл строку шапки со столбцами «Город»/«Прогноз бюджета»');
+  const header = rows[headerIdx];
+  const colCity = colIndexByHeader(header, ['Город']);
+  const colImp = colIndexByHeader(header, ['Прогноз кол-ва выходов']);
+  const colOts = colIndexByHeader(header, ['Прогноз кол-ва OTS', 'Прогноз кол-ва ots']);
+  const colBudget = colIndexByHeader(header, ['Прогноз бюджета']);
+  if (colCity < 0 || colBudget < 0) throw new Error('в плане не нашёл нужные столбцы в строке шапки');
+
+  const byCity = new Map();
+  const order = [];
+  for (let r = headerIdx + 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const cityRaw = row[colCity];
+    if (cityRaw === null || cityRaw === undefined || String(cityRaw).trim() === '') break;
+    if (normKey(cityRaw) === 'итого') continue;
+    const city = String(cityRaw).trim();
+    order.push(city);
+    byCity.set(city, {
+      impressions: Number(row[colImp]) || 0,
+      ots: colOts >= 0 ? (Number(row[colOts]) || 0) : 0,
+      budget: Number(row[colBudget]) || 0
+    });
+  }
+  if (!byCity.size) throw new Error('в плане не нашёл ни одной строки по городам');
+
+  return { days: days, byCity: byCity, cityOrder: order };
+}
+
+/* ────────────────────────────── сборка отчёта ───────────────────────────── */
+
+function sumBy(facts, keyFn) {
+  const m = new Map();
+  for (const f of facts) {
+    const k = keyFn(f);
+    let g = m.get(k);
+    if (!g) { g = { impressions: 0, contacts: 0, spent: 0 }; m.set(k, g); }
+    g.impressions += 1; g.contacts += f.contacts; g.spent += f.spent;
+  }
+  return m;
+}
+
+function groupCityDay(facts) {
+  const cities = new Map(); // city -> Map(dayMs -> {impressions,contacts,spent})
+  for (const f of facts) {
+    let byDay = cities.get(f.city);
+    if (!byDay) { byDay = new Map(); cities.set(f.city, byDay); }
+    const k = f.day.getTime();
+    let g = byDay.get(k);
+    if (!g) { g = { day: f.day, impressions: 0, contacts: 0, spent: 0 }; byDay.set(k, g); }
+    g.impressions += 1; g.contacts += f.contacts; g.spent += f.spent;
+  }
+  return cities;
+}
+
+function cityOrderFrom(cities, planCityOrder) {
+  const present = new Set(cities.keys());
+  const order = [];
+  if (planCityOrder) {
+    for (const c of planCityOrder) if (present.has(c)) { order.push(c); present.delete(c); }
+  }
+  const rest = [...present].sort();
+  return order.concat(rest);
+}
+
+function buildReport(facts, plan, options) {
+  const opt = options || {};
+  const campaignName = opt.campaignName || '';
+  const hasPlan = !!plan;
+  const cities = groupCityDay(facts);
+  const orderedCities = cityOrderFrom(cities, plan ? plan.cityOrder : null);
+
+  /* ── свод ── */
+  const s1heads = hasPlan
+    ? ['Названия строк', 'Сумма по полю Количество выходов', 'Сумма по полю Количество контактов',
+       'Сумма по полю Потрачено средств, руб', 'План бюджета в сутки', 'План OTS в сутки']
+    : ['Названия строк', 'Сумма по полю Количество выходов', 'Сумма по полю Количество контактов',
+       'Сумма по полю Потрачено средств, руб'];
+  const s1 = { name: 'свод', cols: hasPlan ? [22, 20, 22, 22, 18, 18] : [22, 20, 22, 22], rows: [] };
+
+  let planBudgetTotal = 0, planOtsTotal = 0, factBudgetTotal = 0, factOtsTotal = 0;
+  const cityRowsOut = [];
+  for (const city of orderedCities) {
+    const byDay = cities.get(city);
+    const days = [...byDay.values()].sort(function (a, b) { return a.day - b.day; });
+    const p = hasPlan ? plan.byCity.get(city) : null;
+    const dailyBudget = p ? p.budget / plan.days : 0;
+    const dailyOts = p ? p.ots / plan.days : 0;
+    cityRowsOut.push({ city: city, days: days, dailyBudget: dailyBudget, dailyOts: dailyOts, hasPlanRow: !!p });
+    for (const d of days) {
+      factBudgetTotal += d.spent; factOtsTotal += d.contacts;
+      if (p) { planBudgetTotal += dailyBudget; planOtsTotal += dailyOts; }
+    }
+  }
+
+  if (hasPlan) {
+    s1.rows.push([]); s1.rows.push([]); // строки 1-2 — «план общий»/«% выполнения», см. ниже
+  }
+  s1.rows.push(s1heads);
+  for (const cr of cityRowsOut) {
+    s1.rows.push([{ v: cr.city, s: L.S.CITYHDR }, { v: null, s: L.S.CITYHDR }, { v: null, s: L.S.CITYHDR },
+      { v: null, s: L.S.CITYHDR }].concat(hasPlan ? [{ v: null, s: L.S.CITYHDR }, { v: null, s: L.S.CITYHDR }] : []));
+    for (const d of cr.days) {
+      const row = [
+        { v: d.day, s: L.S.DATE }, { v: d.impressions, s: L.S.INT },
+        { v: d.contacts, s: L.S.INT }, { v: round2(d.spent), s: L.S.MONEY }
+      ];
+      if (hasPlan) row.push({ v: round2(cr.dailyBudget), s: L.S.MONEY }, { v: round2(cr.dailyOts), s: L.S.MONEY });
+      s1.rows.push(row);
+    }
+  }
+  if (hasPlan) {
+    s1.rows[0] = [null, null, null, 'план общий', round2(planBudgetTotal), round2(planOtsTotal)];
+    s1.rows[1] = [null, null, null, '% выполнения', ratio(factBudgetTotal, planBudgetTotal), ratio(factOtsTotal, planOtsTotal)];
+  }
+
+  /* ── Отчет ── */
+  const s2 = {
+    name: 'Отчет', cols: [14, 26, 16, 16, 14, 40, 12, 12, 12, 16],
+    rows: [['ИД кампании', 'Наименование кампании', 'Регион', 'Тип конструкции', 'GID', 'Адрес', 'День',
+             'Количество выходов', 'Количество контактов', 'Потрачено средств, руб']]
+  };
+  for (const f of facts) {
+    s2.rows.push([null, campaignName, f.city, f.type, f.gid, f.address,
+      { v: f.day, s: L.S.DATE }, 1, f.contacts, round2(f.spent)]);
+  }
+
+  /* ── Отчет по минутам ── */
+  const s3 = {
+    name: 'Отчет по минутам', cols: [14, 26, 16, 16, 14, 40, 12, 8, 12, 12, 12, 12, 16],
+    rows: [['ИД кампании', 'Наименование кампании', 'Регион', 'Тип конструкции', 'GID', 'Адрес', 'День',
+             'Час', 'Время выхода', 'Время выхода мин', 'Количество выходов', 'Количество контактов', 'Потрачено средств, руб']]
+  };
+  for (const f of facts) {
+    s3.rows.push([null, campaignName, f.city, f.type, f.gid, f.address,
+      { v: f.day, s: L.S.DATE }, f.hour, f.timeStr, f.timeMinStr, 1, f.contacts, round2(f.spent)]);
+  }
+
+  /* ── свод по минутам ── */
+  const minuteBuckets = [...new Set(facts.map(function (f) { return f.timeMinStr; }))]
+    .filter(Boolean).sort(function (a, b) { return timeMinSortKey(a) - timeMinSortKey(b); });
+  const s4 = { name: 'свод по минутам', cols: [22].concat(minuteBuckets.map(function () { return 8; })).concat([10]),
+    rows: [['Названия строк'].concat(minuteBuckets).concat(['Итог'])] };
+  for (const cr of cityRowsOut) {
+    s4.rows.push([{ v: cr.city, s: L.S.CITYHDR }].concat(minuteBuckets.map(function () { return { v: null, s: L.S.CITYHDR }; }))
+      .concat([{ v: null, s: L.S.CITYHDR }]));
+    for (const d of cr.days) {
+      const byMinute = sumBy(facts.filter(function (f) { return f.city === cr.city && f.day.getTime() === d.day.getTime(); }),
+        function (f) { return f.timeMinStr; });
+      const row = [{ v: d.day, s: L.S.DATE }];
+      let tot = 0;
+      for (const b of minuteBuckets) {
+        const g = byMinute.get(b);
+        row.push(g ? { v: g.impressions, s: L.S.INT } : null);
+        tot += g ? g.impressions : 0;
+      }
+      row.push({ v: tot, s: L.S.INT });
+      s4.rows.push(row);
+    }
+  }
+
+  /* ── Лист2 (по часам, разрез кампания→день→адрес→GID) ── */
+  const hours = [...new Set(facts.map(function (f) { return f.hour; }))].sort(function (a, b) { return a - b; });
+  const groupKey = function (f) { return f.day.getTime() + ' ' + f.address + ' ' + f.gid; };
+  const groups = new Map();
+  const groupOrder = [];
+  for (const f of facts) {
+    const k = groupKey(f);
+    let g = groups.get(k);
+    if (!g) {
+      g = { day: f.day, address: f.address, gid: f.gid, byHour: new Map(), total: 0 };
+      groups.set(k, g); groupOrder.push(k);
+    }
+    g.byHour.set(f.hour, (g.byHour.get(f.hour) || 0) + 1);
+    g.total += 1;
+  }
+  groupOrder.sort(function (ka, kb) {
+    const a = groups.get(ka), b = groups.get(kb);
+    if (a.day.getTime() !== b.day.getTime()) return a.day - b.day;
+    if (a.address !== b.address) return a.address < b.address ? -1 : 1;
+    return a.gid < b.gid ? -1 : (a.gid > b.gid ? 1 : 0);
+  });
+
+  const s5 = { name: 'Лист2', cols: [26, 14, 40, 16].concat(hours.map(function () { return 8; })).concat([10]),
+    rows: [['Наименование кампании', 'День', 'Адрес', 'GID'].concat(hours).concat(['Общий итог'])] };
+  let prevCampaign = null, prevDay = null;
+  for (const k of groupOrder) {
+    const g = groups.get(k);
+    const campaignCell = (prevCampaign === campaignName) ? null : campaignName;
+    const dayKey = g.day.getTime();
+    const dayCell = (prevDay === dayKey) ? null : { v: g.day, s: L.S.DATE };
+    prevCampaign = campaignName; prevDay = dayKey;
+    const row = [campaignCell, dayCell, g.address, g.gid];
+    for (const h of hours) row.push(g.byHour.get(h) || null);
+    row.push(g.total);
+    s5.rows.push(row);
+  }
+
+  const stats = {
+    facts: facts.length,
+    cities: orderedCities.length,
+    hasPlan: hasPlan,
+    factBudget: round2(factBudgetTotal), planBudget: round2(planBudgetTotal),
+    factOts: round2(factOtsTotal), planOts: round2(planOtsTotal),
+    budgetRatio: hasPlan ? ratio(factBudgetTotal, planBudgetTotal) : null,
+    otsRatio: hasPlan ? ratio(factOtsTotal, planOtsTotal) : null,
+    minuteBuckets: minuteBuckets.length,
+    hours: hours.length,
+    groups: groupOrder.length
+  };
+
+  return { sheets: [s1, s2, s3, s4, s5], stats: stats };
+}
+
+function round2(n) { return Math.round((n || 0) * 100) / 100; }
+function ratio(a, b) { return b ? a / b : null; }
+
+root.MasterAdCore = {
+  DEFAULTS: DEFAULTS,
+  collectStatRows: collectStatRows,
+  buildFacts: buildFacts,
+  loadPlan: loadPlan,
+  buildReport: buildReport,
+  /* низкоуровневые — для тестов/гайда */
+  normFormatKey: normFormatKey,
+  parseRuDate: parseRuDate,
+  parseTime: parseTime,
+  timeToStr: timeToStr,
+  timeMinSortKey: timeMinSortKey,
+  findHeaderRow: findHeaderRow
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.MasterAdCore;
+
+</script>
+<script>
 (function () {
 'use strict';
-const L = window.OmniLib, I = window.InventoryCore;
+const L = window.OmniLib, I = window.InventoryCore, M = window.MasterAdCore;
 const $ = function (id) { return document.getElementById(id); };
 
 /* ── переключатель режимов ── */
@@ -1869,6 +2549,235 @@ $('dlAll').addEventListener('click', async function () {
   const files = [];
   for (const r of ok) files.push({ name: r.name, bytes: new Uint8Array(await r.blob.arrayBuffer()) });
   L.download(L.zipWrite(files), 'отчётность — инвенто.zip');
+});
+
+/* ═══════════════════════════════ MASTERAD ══════════════════════════════ */
+
+let maStatInput = null, maPlanFile = null, maResultBlob = null;
+
+/* ── замена нулей OTS: редактируемые строки ── */
+/* Значения по переписке для кампании «Яндекс GO Тариф Вместе» — стартовый
+   набор, чтобы не вбивать заново при повторной сборке того же отчёта;
+   для другой кампании их надо стереть/заменить своими (таблица разовая). */
+let maZero = [
+  { city: 'Казань', format: 'CITY_FORMAT', value: 16 },
+  { city: 'Казань', format: 'BILLBOARD', value: 50 },
+  { city: 'Нижний Новгород', format: 'CITY_FORMAT', value: 25 },
+  { city: 'Нижний Новгород', format: 'BILLBOARD', value: 33 },
+  { city: 'Санкт-Петербург', format: 'BILLBOARD', value: 34 },
+  { city: 'Химки', format: 'CITY_BOARD', value: 73 }
+];
+
+function renderMaZero() {
+  $('maZeroRows').innerHTML = maZero.map(function (z, i) {
+    return '<div class="grid3" style="margin-bottom:8px;align-items:end">' +
+      '<div class="field" style="margin-bottom:0"><label>Город</label>' +
+        '<input type="text" data-zi="' + i + '" data-zf="city" value="' + esc(z.city) + '"></div>' +
+      '<div class="field" style="margin-bottom:0"><label>Тип конструкции</label>' +
+        '<input type="text" data-zi="' + i + '" data-zf="format" value="' + esc(z.format) + '" placeholder="BILLBOARD"></div>' +
+      '<div style="display:flex;gap:8px;align-items:end">' +
+        '<div class="field" style="margin-bottom:0;flex:1"><label>Значение</label>' +
+          '<input type="number" data-zi="' + i + '" data-zf="value" value="' + z.value + '"></div>' +
+        '<a href="#" data-zrm="' + i + '" style="padding-bottom:11px" title="убрать строку">✕</a>' +
+      '</div></div>';
+  }).join('');
+  [...$('maZeroRows').querySelectorAll('input[data-zi]')].forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      const i = parseInt(inp.dataset.zi, 10), f = inp.dataset.zf;
+      maZero[i][f] = (f === 'value') ? (parseFloat(inp.value) || 0) : inp.value;
+    });
+  });
+  [...$('maZeroRows').querySelectorAll('a[data-zrm]')].forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      maZero.splice(parseInt(a.dataset.zrm, 10), 1);
+      renderMaZero();
+    });
+  });
+}
+renderMaZero();
+$('maZeroAdd').addEventListener('click', function () {
+  maZero.push({ city: '', format: '', value: 0 });
+  renderMaZero();
+});
+
+/* ── статистика: файлы или zip ── */
+const maDropStat = $('maDropStat'), maFileStat = $('maFileStat');
+maDropStat.addEventListener('click', function () { maFileStat.click(); });
+maDropStat.addEventListener('dragover', function (e) { e.preventDefault(); maDropStat.classList.add('over'); });
+maDropStat.addEventListener('dragleave', function () { maDropStat.classList.remove('over'); });
+maDropStat.addEventListener('drop', function (e) {
+  e.preventDefault(); maDropStat.classList.remove('over');
+  if (e.dataTransfer.files && e.dataTransfer.files.length) setMaStat([].slice.call(e.dataTransfer.files));
+});
+maFileStat.addEventListener('change', function () {
+  if (maFileStat.files && maFileStat.files.length) setMaStat([].slice.call(maFileStat.files));
+});
+
+function setMaStat(files) {
+  const good = files.filter(function (f) { return /\.(xlsx|xlsm|zip)$/i.test(f.name); });
+  if (!good.length) { maLog('Нужны файлы .xlsx или .zip', 'err'); return; }
+  if (good.length === 1 && /\.zip$/i.test(good[0].name)) {
+    maStatInput = { kind: 'zip', source: L.blobSource(good[0]), label: good[0].name, bytes: good[0].size };
+  } else {
+    maStatInput = { kind: 'files', files: good, label: good.length + ' файлов',
+                    bytes: good.reduce(function (a, f) { return a + f.size; }, 0) };
+  }
+  maDropStat.classList.add('filled');
+  $('maStatMain').textContent = maStatInput.label;
+  $('maStatSub').textContent = fmtSizeMa(maStatInput.bytes);
+  updateMaGo();
+}
+function fmtSizeMa(b) {
+  if (b > 1073741824) return (b / 1073741824).toFixed(2) + ' ГБ';
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' МБ';
+  return (b / 1024).toFixed(0) + ' КБ';
+}
+
+/* ── план ── */
+const maDropPlan = $('maDropPlan'), maFilePlan = $('maFilePlan'), maNoPlan = $('maNoPlan');
+maDropPlan.addEventListener('click', function () { if (!maNoPlan.checked) maFilePlan.click(); });
+maDropPlan.addEventListener('dragover', function (e) { e.preventDefault(); if (!maNoPlan.checked) maDropPlan.classList.add('over'); });
+maDropPlan.addEventListener('dragleave', function () { maDropPlan.classList.remove('over'); });
+maDropPlan.addEventListener('drop', function (e) {
+  e.preventDefault(); maDropPlan.classList.remove('over');
+  if (maNoPlan.checked) return;
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) setMaPlan(e.dataTransfer.files[0]);
+});
+maFilePlan.addEventListener('change', function () {
+  if (maFilePlan.files && maFilePlan.files[0]) setMaPlan(maFilePlan.files[0]);
+});
+function setMaPlan(f) {
+  if (!/\.(xlsx|xlsm)$/i.test(f.name)) { maLog('Нужен файл .xlsx', 'err'); return; }
+  maPlanFile = f;
+  maDropPlan.classList.add('filled');
+  $('maPlanMain').textContent = f.name;
+  $('maPlanSub').textContent = fmtSizeMa(f.size);
+  updateMaGo();
+}
+maNoPlan.addEventListener('change', function () {
+  maDropPlan.style.opacity = maNoPlan.checked ? .45 : 1;
+  maDropPlan.style.pointerEvents = maNoPlan.checked ? 'none' : '';
+  updateMaGo();
+});
+
+function updateMaGo() {
+  $('maGo').disabled = !(maStatInput && (maNoPlan.checked || maPlanFile));
+}
+
+/* ── лог/прогресс (свои элементы, тот же стиль) ── */
+function maLog(msg, kind) {
+  const el = $('maLog');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function maProgress(on, text, frac) {
+  $('maProg').classList.toggle('on', !!on);
+  if (text !== undefined) $('maProgText').textContent = text;
+  if (frac !== undefined && frac !== null) {
+    $('maBar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+  }
+}
+
+/* ── запуск ── */
+$('maGo').addEventListener('click', async function () {
+  if (!maStatInput) return;
+  $('maGo').disabled = true;
+  $('maResults').classList.remove('on');
+  $('maLog').innerHTML = ''; $('maLog').classList.remove('on');
+  maProgress(true, '', 0);
+
+  try {
+    let plan = null;
+    if (!maNoPlan.checked) {
+      maProgress(true, 'Читаю план…', null);
+      plan = await M.loadPlan(maPlanFile);
+      maLog('План: ' + plan.days + ' дней, города — ' + plan.cityOrder.join(', '), 'ok');
+    }
+
+    maProgress(true, 'Читаю статистику…', null);
+    const t0 = Date.now();
+    const { rawRows, skipped } = await M.collectStatRows(maStatInput, function (i, n, name) {
+      maProgress(true, 'Читаю статистику: файл ' + i + (n ? ' из ' + n : '') + ' — ' + name, n ? i / n : null);
+    });
+    maLog('Строк прочитано: ' + rawRows.length + ' за ' + ((Date.now() - t0) / 1000).toFixed(1) + ' с', 'ok');
+    if (skipped.length) skipped.forEach(function (s) { maLog(s, 'warn'); });
+    if (!rawRows.length) throw new Error('не нашёл ни одной строки данных в статистике');
+
+    const zeroMap = new Map();
+    for (const z of maZero) {
+      if (!z.city || !z.format) continue;
+      zeroMap.set(M.normFormatKey(z.city, z.format), Number(z.value) || 0);
+    }
+
+    const dateFrom = $('maDateFrom').value ? new Date($('maDateFrom').value + 'T00:00:00') : null;
+    const dateTo = $('maDateTo').value ? new Date($('maDateTo').value + 'T00:00:00') : null;
+
+    maProgress(true, 'Считаю факты…', null);
+    const { facts, stats } = M.buildFacts(rawRows, { zeroMap: zeroMap, dateFrom: dateFrom, dateTo: dateTo });
+    maLog('Факты: всего строк ' + stats.total + ', успешных ' + stats.success +
+      ', отклонённых ' + stats.rejected + (stats.outOfRange ? ', вне диапазона дат ' + stats.outOfRange : ''), 'ok');
+    if (!facts.length) throw new Error('после фильтра «УСПЕШНЫЙ» и диапазона дат не осталось ни одной строки');
+
+    maProgress(true, 'Собираю отчёт…', null);
+    const campaignName = $('maCampaign').value.trim();
+    const rep = M.buildReport(facts, plan, { campaignName: campaignName });
+    maLog('Отчёт собран: ' + rep.stats.facts + ' показов, ' + rep.stats.cities + ' город(а/ов)' +
+      (rep.stats.hasPlan ? ', выполнение — ' + pct(rep.stats.budgetRatio) + '% бюджет / ' +
+        pct(rep.stats.otsRatio) + '% OTS' : ' (без плана)'), 'ok');
+
+    maProgress(true, 'Упаковываю xlsx…', 0);
+    maResultBlob = await L.writeXlsxDeflate(rep.sheets, function (i, n) {
+      maProgress(true, 'Упаковываю xlsx: ' + i + ' из ' + n, i / n);
+    });
+    maProgress(false);
+    renderMaResults(rep.stats);
+    $('maReset').style.display = '';
+  } catch (e) {
+    maProgress(false);
+    maLog('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    $('maGo').disabled = false;
+  }
+});
+
+function pct(r) { return r === null || r === undefined ? '—' : (r * 100).toFixed(1); }
+
+function renderMaResults(stats) {
+  $('maTiles').innerHTML =
+    tile(stats.facts.toLocaleString('ru-RU'), 'успешных показов', 'good') +
+    tile(stats.cities, 'город(а/ов)') +
+    tile(Math.round(stats.factBudget).toLocaleString('ru-RU') + ' ₽', 'потрачено') +
+    tile(Math.round(stats.factOts).toLocaleString('ru-RU'), 'контактов (OTS)') +
+    (stats.hasPlan ? tile(pct(stats.budgetRatio) + '%', 'бюджет к плану', stats.budgetRatio < 0.5 ? 'warn' : '') : '') +
+    (stats.hasPlan ? tile(pct(stats.otsRatio) + '%', 'OTS к плану', stats.otsRatio < 0.5 ? 'warn' : '') : '');
+
+  $('maNotes').innerHTML = stats.hasPlan ? '' :
+    '<div class="note info">Без плана — лист «свод» только с фактом, без «% выполнения» (как для клиентов без расчёта).</div>';
+  $('maResults').classList.add('on');
+}
+
+$('maDl').addEventListener('click', function () {
+  if (!maResultBlob) return;
+  const name = ($('maCampaign').value.trim() || 'Отчет') + '.xlsx';
+  L.download(maResultBlob, name);
+});
+
+$('maReset').addEventListener('click', function () {
+  maStatInput = null; maPlanFile = null; maResultBlob = null;
+  maFileStat.value = ''; maFilePlan.value = '';
+  $('maResults').classList.remove('on');
+  $('maLog').innerHTML = ''; $('maLog').classList.remove('on');
+  maDropStat.classList.remove('filled'); maDropPlan.classList.remove('filled');
+  $('maStatMain').textContent = 'Файлы .xlsx или .zip с несколькими частями';
+  $('maStatSub').textContent = 'систему ограничивает число строк на выгрузку — можно сразу все части';
+  $('maPlanMain').textContent = 'Файл .xlsx с планом по городам';
+  $('maPlanSub').textContent = 'ищет «Количество дней» и таблицу «Город / Прогноз…» — сама позиция не важна';
+  $('maReset').style.display = 'none';
+  updateMaGo();
 });
 
 })();

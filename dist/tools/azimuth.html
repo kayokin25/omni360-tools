@@ -119,13 +119,14 @@ h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; 
 label { display: block; font-size: 13px; color: var(--desc); margin-bottom: 6px; }
 .hint { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
 
-input[type=text], input[type=number], select {
+input[type=text], input[type=number], input[type=date], select {
   width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
   border-radius: 10px; color: var(--text); font-size: 14px;
   padding: 10px 13px; outline: none; transition: border-color .15s;
   font-family: inherit;
 }
-input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--accent); }
+input[type=text]:focus, input[type=number]:focus, input[type=date]:focus, select:focus { border-color: var(--accent); }
+input[type=date] { color-scheme: light dark; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input:disabled, select:disabled, button:disabled { opacity: .5; cursor: not-allowed; }
 input::placeholder { color: var(--dim); }
@@ -727,6 +728,82 @@ function zipWrite(files) {
   return new Blob(parts.concat(central, [new Uint8Array(eocd)]), { type: 'application/zip' });
 }
 
+/* Симметрично inflateRaw — штатный CompressionStream, тот же 'deflate-raw'. */
+async function deflateRaw(bytes) {
+  const cs = new CompressionStream('deflate-raw');
+  const w = cs.writable.getWriter();
+  w.write(bytes); w.close();
+  const parts = [];
+  let total = 0;
+  const r = cs.readable.getReader();
+  for (;;) {
+    const { done, value } = await r.read();
+    if (done) break;
+    parts.push(value); total += value.length;
+  }
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/* Та же запись zip, что и zipWrite, но каждая запись — DEFLATE, а не STORED.
+   Асинхронно (CompressionStream — потоковый API); для по-настоящему больших
+   файлов (сотни тысяч строк текста) сжатие даёт разы, а не проценты — XML
+   этого вида (много повторяющихся тегов/значений) на этом и держится. */
+async function zipWriteDeflate(files, onProgress) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  let i = 0;
+
+  for (const f of files) {
+    const nameBytes = encodeUtf8(f.name);
+    const rawBytes = f.blob || f.bytes;
+    const size = f.size !== undefined ? f.size : rawBytes.length;
+    const crc = f.crc !== undefined ? f.crc : crc32(rawBytes);
+    const compBytes = await deflateRaw(rawBytes);
+    i++;
+    if (onProgress) onProgress(i, files.length, f.name);
+
+    const lh = [];
+    w32(lh, 0x04034b50);
+    w16(lh, 20);
+    w16(lh, 0x0800);
+    w16(lh, 8);            // DEFLATE
+    w16(lh, 0); w16(lh, 0);
+    w32(lh, crc); w32(lh, compBytes.length); w32(lh, size);
+    w16(lh, nameBytes.length); w16(lh, 0);
+    const lhBytes = new Uint8Array(lh);
+    parts.push(lhBytes, nameBytes, compBytes);
+
+    const cd = [];
+    w32(cd, 0x02014b50);
+    w16(cd, 20); w16(cd, 20);
+    w16(cd, 0x0800); w16(cd, 8);
+    w16(cd, 0); w16(cd, 0);
+    w32(cd, crc); w32(cd, compBytes.length); w32(cd, size);
+    w16(cd, nameBytes.length); w16(cd, 0); w16(cd, 0);
+    w16(cd, 0); w16(cd, 0); w32(cd, 0);
+    w32(cd, offset);
+    central.push(new Uint8Array(cd), nameBytes);
+
+    offset += lhBytes.length + nameBytes.length + compBytes.length;
+  }
+
+  let cdSize = 0;
+  for (const c of central) cdSize += c.length;
+
+  const eocd = [];
+  w32(eocd, 0x06054b50);
+  w16(eocd, 0); w16(eocd, 0);
+  w16(eocd, files.length); w16(eocd, files.length);
+  w32(eocd, cdSize); w32(eocd, offset);
+  w16(eocd, 0);
+
+  return new Blob(parts.concat(central, [new Uint8Array(eocd)]), { type: 'application/zip' });
+}
+
 /* ─────────────────────── размеры видео из MP4/MOV ─────────────────────── */
 
 const CONTAINER_BOXES = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'udta']);
@@ -832,6 +909,16 @@ function escapeXml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c];
   // eslint-disable-next-line no-control-regex
   }).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+}
+
+/* JS Date → серийный номер даты Excel (дней с 1899-12-30, тот самый
+   исторический баг с несуществующим 29 февраля 1900 — Excel считает так
+   всегда, и это учтено самой точкой отсчёта). Даты собираются и здесь, и на
+   входе одинаково через локальный конструктор Date(y, m, d) — разница часовых
+   поясов и переходов на летнее время при этом взаимно гасится. */
+function dateToSerial(d) {
+  const epoch = new Date(1899, 11, 30);
+  return Math.round((d.getTime() - epoch.getTime()) / 86400000);
 }
 
 /* ──────────────────────────── XLSX: чтение ────────────────────────────── */
@@ -972,7 +1059,12 @@ async function readXlsx(source) {
 
 const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
 '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-'<numFmts count="1"><numFmt numFmtId="164" formatCode="0.000000"/></numFmts>' +
+'<numFmts count="4">' +
+  '<numFmt numFmtId="164" formatCode="0.000000"/>' +
+  '<numFmt numFmtId="165" formatCode="dd.mm.yyyy"/>' +
+  '<numFmt numFmtId="166" formatCode="#,##0.00"/>' +
+  '<numFmt numFmtId="167" formatCode="#,##0"/>' +
+'</numFmts>' +
 '<fonts count="5">' +
   '<font><sz val="10"/><name val="Arial"/></font>' +
   '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/></font>' +
@@ -980,12 +1072,13 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<font><sz val="10"/><name val="Arial"/></font>' +
   '<font><b/><sz val="10"/><name val="Arial"/></font>' +
 '</fonts>' +
-'<fills count="5">' +
+'<fills count="6">' +
   '<fill><patternFill patternType="none"/></fill>' +
   '<fill><patternFill patternType="gray125"/></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FF2F3B52"/><bgColor indexed="64"/></patternFill></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FFFCE4E4"/><bgColor indexed="64"/></patternFill></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FFE7F4E4"/><bgColor indexed="64"/></patternFill></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFF2F2F2"/><bgColor indexed="64"/></patternFill></fill>' +
 '</fills>' +
 '<borders count="2">' +
   '<border><left/><right/><top/><bottom/><diagonal/></border>' +
@@ -993,7 +1086,7 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border>' +
 '</borders>' +
 '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-'<cellXfs count="8">' +
+'<cellXfs count="12">' +
   '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
   '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
   '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
@@ -1002,11 +1095,16 @@ const STYLES_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
   '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
   '<xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+  '<xf numFmtId="0" fontId="4" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
+  '<xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>' +
 '</cellXfs>' +
 '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
 '</styleSheet>';
 
-const S = { PLAIN: 0, HEADER: 1, BODY: 2, WARN: 3, OK: 4, LINK: 5, NUM6: 6, GROUP: 7 };
+const S = { PLAIN: 0, HEADER: 1, BODY: 2, WARN: 3, OK: 4, LINK: 5, NUM6: 6, GROUP: 7,
+  DATE: 8, CITYHDR: 9, MONEY: 10, INT: 11 };
 
 function indexToCol(i) {
   let s = '';
@@ -1067,7 +1165,9 @@ function sheetToXml(sheet) {
       const ref = indexToCol(ci) + rn;
       const st = obj.s === undefined ? (ri === 0 ? S.HEADER : S.BODY) : obj.s;
       if (obj.link) hyperlinks.push({ ref: ref, url: obj.link });
-      if (typeof v === 'number' && isFinite(v)) {
+      if (v instanceof Date) {
+        x += '<c r="' + ref + '" s="' + st + '"><v>' + dateToSerial(v) + '</v></c>';
+      } else if (typeof v === 'number' && isFinite(v)) {
         x += '<c r="' + ref + '" s="' + st + '"><v>' + v + '</v></c>';
       } else if (typeof v === 'boolean') {
         x += '<c r="' + ref + '" s="' + st + '" t="b"><v>' + (v ? 1 : 0) + '</v></c>';
@@ -1091,8 +1191,10 @@ function sheetToXml(sheet) {
   return { xml: x, hyperlinks: hyperlinks };
 }
 
-/* sheets: [{name, cols, freeze, rows}] → Blob (.xlsx) */
-function writeXlsx(sheets) {
+/* sheets: [{name, cols, freeze, rows}] → список файлов пакета xlsx
+   (общее для writeXlsx и writeXlsxDeflate — отличаются только тем, как
+   потом упаковывается zip: STORED или DEFLATE). */
+function buildXlsxFiles(sheets) {
   const files = [];
   const add = function (name, str) { files.push({ name: name, bytes: encodeUtf8(str) }); };
 
@@ -1154,7 +1256,27 @@ function writeXlsx(sheets) {
     }
   });
 
-  const blob = zipWrite(files);
+  return files;
+}
+
+/* sheets → Blob (.xlsx), ZIP без сжатия (STORED) — быстро, но крупные отчёты
+   (сотни тысяч строк) выходят раздутыми: XML-текст сжимается в разы, а тут
+   он идёт как есть. Годится для отчётов на тысячи строк — как и раньше. */
+function writeXlsx(sheets) {
+  const blob = zipWrite(buildXlsxFiles(sheets));
+  return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+/* То же самое, но ZIP-запись через DEFLATE (штатный CompressionStream —
+   симметрично inflateRaw/DecompressionStream, которым читаются архивы).
+   Нужно только там, где иначе файл выходит непригодным для скачивания —
+   отчёт MasterAd на 250 000+ строк без сжатия весит под 500 МБ, со сжатием —
+   в районе размера исходников. Асинхронно (Compression Stream — потоковый
+   API), поэтому отдельная функция, а не флаг у writeXlsx: иначе пришлось бы
+   переводить на await всех существующих вызывающих (creatives/azimuth/
+   инвенто — там файлы маленькие, им незачем ждать сжатия). */
+async function writeXlsxDeflate(sheets, onProgress) {
+  const blob = await zipWriteDeflate(buildXlsxFiles(sheets), onProgress);
   return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
@@ -1209,8 +1331,9 @@ function download(blob, filename) {
 root.OmniLib = {
   blobSource: blobSource, bytesSource: bytesSource,
   zipOpen: zipOpen, zipRead: zipRead, zipReadHeadTail: zipReadHeadTail, zipWrite: zipWrite,
+  zipWriteDeflate: zipWriteDeflate, deflateRaw: deflateRaw,
   inflateRaw: inflateRaw, crc32: crc32,
-  readXlsx: readXlsx, writeXlsx: writeXlsx, S: S,
+  readXlsx: readXlsx, writeXlsx: writeXlsx, writeXlsxDeflate: writeXlsxDeflate, S: S,
   findStsdDims: findStsdDims, scanStsdDims: scanStsdDims, dimsFromHeadTail: dimsFromHeadTail,
   normName: normName, normRes: normRes, parseRes: parseRes, normAspect: normAspect,
   reduceRatio: reduceRatio, cellStr: cellStr, download: download,
