@@ -29,7 +29,8 @@
     берётся один, самый большой доступный файл — он покрывает все экраны этого соотношения
     размером не больше себя, поэтому мельче того же соотношения в архив не идут; для
     Russ Outdoor — только точное совпадение, без исключений.
-    На выходе архив без дублей и отчёт.
+    На выходе — архив без дублей и отчёт: лист «Отправка» — раскрывающийся список
+    (файл креатива, а под ним — операторы, которым его грузить; группу можно свернуть).
   </p>
 
   <div class="grid2">
@@ -315,8 +316,11 @@ function render() {
     if (s === 'Кол-во ФО' || s === 'Значение') numCols.add(i);
   });
 
-  $('tbody').innerHTML = sheet.rows.slice(1).map(function (r) {
-    const cls = activeTab === 'miss' ? ' class="miss"' : (activeTab === 'send' ? ' class="ok"' : '');
+  $('tbody').innerHTML = sheet.rows.slice(1).map(function (rowOrGroup) {
+    const isGroup = rowOrGroup && !Array.isArray(rowOrGroup);
+    const r = isGroup ? (rowOrGroup.cells || []) : rowOrGroup;
+    let cls = activeTab === 'miss' ? ' class="miss"' : (activeTab === 'send' ? ' class="ok"' : '');
+    if (activeTab === 'send' && isGroup) cls = (rowOrGroup.outlineLevel === 1) ? ' class="op"' : ' class="grp"';
     return '<tr' + cls + '>' + head.map(function (_, i) {
       const v = cellV(r[i]);
       const isNum = numCols.has(i);

@@ -207,6 +207,11 @@ tbody tr.miss td { background: var(--miss-bg); }
 tbody tr.miss:hover td { background: var(--miss-bg-hover); }
 tbody tr.miss td:first-child { box-shadow: inset 3px 0 0 #b91c1c; }
 tbody tr.ok td:first-child { box-shadow: inset 3px 0 0 #15803d; }
+/* Раскрывающийся список креативов: заголовок группы (файл) выделен,
+   строки операторов внутри — обычные, но с отступом первой колонки. */
+tbody tr.grp td { background: var(--ok-bg); color: var(--text); font-weight: 600; }
+tbody tr.grp:hover td { background: var(--ok-bg); }
+tbody tr.op td:first-child { padding-left: 28px; }
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
