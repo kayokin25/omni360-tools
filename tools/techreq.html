@@ -3,9 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Сбор технических требований</title>
+<title>Технические требования по АП</title>
 <style>
 /*__INJECT:tool-ui.css__*/
+/* Строка состояния реестра и карточки операторов. Цвета — только через
+   переменные tool-ui.css: тему переключает панель, и хардкод здесь означал бы
+   нечитаемый инструмент в светлой теме. */
+.reg-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px;
+  color:var(--desc); margin:-4px 0 14px }
+.reg-line b { color:var(--text); font-weight:600 }
+.reg-line .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none }
+.reg-line .dot.ok { background:var(--ok-text) }
+.reg-line .dot.bad { background:var(--err-text) }
+.reg-line button { background:none; border:none; padding:0; color:var(--accent); cursor:pointer;
+  font:inherit; text-decoration:underline; text-underline-offset:2px }
+.card-op { border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden }
+.card-op > summary { cursor:pointer; padding:10px 14px; display:flex; gap:10px;
+  align-items:baseline; flex-wrap:wrap; background:var(--panel) }
+.card-op > summary::-webkit-details-marker { display:none }
+.card-op > summary .nm { font-weight:600; color:var(--text) }
+.card-op > summary .meta { font-size:12px; color:var(--desc) }
+.card-op[open] > summary { border-bottom:1px solid var(--line) }
+.card-blk { padding:10px 14px; border-top:1px solid var(--line-soft) }
+.card-blk:first-of-type { border-top:none }
+.card-blk .bt { font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:6px }
+.card-blk.assumed { background:var(--warn-bg) }
+.card-blk dl { display:grid; grid-template-columns:minmax(120px,220px) 1fr; gap:4px 14px; margin:0 }
+.card-blk dt { color:var(--desc); font-size:13px }
+.card-blk dd { margin:0; font-size:13px; color:var(--text) }
+td.warn-cell { color:var(--err-text) }
+.chk { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--desc);
+  cursor:pointer; margin:10px 0 4px }
+.chk input { width:auto; accent-color:var(--accent); cursor:pointer }
 </style>
 <script>
 /*__INJECT:theme.js__*/
@@ -19,15 +49,24 @@
     <div class="logo-dot"></div>
     <div>
       <div class="logo-text">Omni360</div>
-      <div class="logo-sub">сбор технических требований</div>
+      <div class="logo-sub">технические требования</div>
     </div>
   </div>
 
   <h1>Технические требования по АП</h1>
   <p class="subtitle">
-    Загрузите адресную программу — инструмент определит длительность ролика для каждой связки
-    «оператор + формат», подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
+    Загрузите адресную программу — инструмент сведёт требования операторов из реестра ТТ
+    в <b>задание на макеты</b>: одна строка на уникальную связку «разрешение × длительность»
+    с самыми строгими из требований, конфликтами и пробелами. Рядом — карточки операторов
+    по блокам A–G.
   </p>
+
+  <div class="reg-line" id="regLine">
+    <span class="dot" id="regDot"></span>
+    <span id="regText">Реестр ТТ загружается…</span>
+    <button id="regPick">подложить свой файл</button>
+  </div>
+  <input type="file" id="regFile" accept=".xlsx,.xlsm">
 
   <div class="section-label">Адресная программа</div>
   <div class="drop" id="drop">
@@ -37,18 +76,9 @@
   </div>
   <input type="file" id="file" accept=".xlsx,.xlsm">
 
-  <div class="section-label">Папка с ТТ на Яндекс.Диске</div>
-  <div class="field">
-    <input type="text" id="yaKey" spellcheck="false">
-    <div class="hint">
-      Публичная ссылка на папку. Файлы внутри должны быть опубликованы по отдельности —
-      иначе постоянной ссылки на них нет. Имя файла задаёт привязку:
-      <code>Оператор 1920х1080</code>, <code>Оператор 2:1</code> или <code>Оператор общее</code>.
-    </div>
-  </div>
-  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;cursor:pointer;margin-bottom:4px">
-    <input type="checkbox" id="useYa" checked style="width:auto;accent-color:#00c6ff;cursor:pointer">
-    подтягивать ссылки на ТТ с Диска
+  <label class="chk">
+    <input type="checkbox" id="useDef" checked>
+    подставлять отраслевой дефолт, где ТТ оператора нет (с пометкой «допущение»)
   </label>
 
   <div class="btn-row">
@@ -69,16 +99,19 @@
     <div id="notes"></div>
 
     <div class="tabs" id="tabs"></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr id="thead"></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
+    <div id="viewTable">
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
     </div>
+    <div id="viewCards" style="display:none"></div>
 
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" id="dl">Скачать .xlsx</button>
-      <button class="btn ghost" id="copy">Копировать таблицу</button>
+      <button class="btn ghost" id="copy">Копировать задание</button>
     </div>
   </div>
 
@@ -96,16 +129,81 @@
 /*__INJECT:tt-core.js__*/
 </script>
 <script>
+/*__INJECT:ttreg-core.js__*/
+</script>
+<script>
 (function () {
 'use strict';
-const L = window.OmniLib, T = window.TTCore;
+const L = window.OmniLib, R = window.TTRegCore;
 const $ = function (id) { return document.getElementById(id); };
 
-let apFile = null, dedup = [], misses = new Set(), linkStats = null, activeTab = 'all';
+let apFile = null, registry = null, regSource = '', result = null, activeTab = 'tasks';
 
-$('yaKey').value = T.DATA.YADISK_PUBLIC_KEY || '';
+/* ── реестр ТТ ─────────────────────────────────────────────────────────────
+   Штатный путь — файл из dist/data, он же лежит в репозитории. Абсолютный URL
+   от location.origin обязателен: инструмент внутри панели живёт на blob:, и
+   относительный путь оттуда не резолвится (та же история, что у азимутов). */
+async function loadRegistryFromData() {
+  const url = new URL(R.REGISTRY_URL, location.origin).href;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('реестр не отдался: ' + r.status + ' ' + r.statusText);
+  const buf = new Uint8Array(await r.arrayBuffer());
+  return L.readXlsx(L.bytesSource(buf, 'tt_registry.xlsx'));
+}
 
-/* ── выбор файла ── */
+function regStatus(kind, text) {
+  $('regDot').className = 'dot' + (kind ? ' ' + kind : '');
+  $('regText').innerHTML = text;
+}
+
+function describeRegistry() {
+  const a = registry.about;
+  regStatus('ok', 'Реестр ТТ' + (a.builtAt ? ' от <b>' + escapeHtml(a.builtAt) + '</b>' : '') +
+    ': операторов <b>' + registry.operators.length + '</b>' +
+    ', листов по конструкциям <b>' + countConstructions() + '</b>' +
+    ' · ' + escapeHtml(regSource));
+}
+
+function countConstructions() {
+  let n = 0;
+  registry.constructions.forEach(function (v) { n += v.length; });
+  return n;
+}
+
+async function setRegistry(workbook, source) {
+  registry = R.readRegistry(workbook);
+  regSource = source;
+  describeRegistry();
+  for (const w of registry.warnings) log('Реестр: ' + w, 'warn');
+  refreshGo();
+}
+
+(async function initRegistry() {
+  try {
+    const wb = await loadRegistryFromData();
+    await setRegistry(wb, 'встроенный файл');
+  } catch (e) {
+    regStatus('bad', 'Реестр ТТ не загрузился (' + escapeHtml(e.message) +
+      '). Подложите файл вручную.');
+  }
+})();
+
+$('regPick').addEventListener('click', function () { $('regFile').click(); });
+$('regFile').addEventListener('change', async function () {
+  const f = $('regFile').files && $('regFile').files[0];
+  if (!f) return;
+  try {
+    const wb = await L.readXlsx(L.blobSource(f));
+    await setRegistry(wb, f.name);
+    log('Реестр взят из файла «' + f.name + '»', 'ok');
+  } catch (e) {
+    regStatus('bad', 'Файл «' + escapeHtml(f.name) + '» не подошёл: ' + escapeHtml(e.message));
+    registry = null;
+    refreshGo();
+  }
+});
+
+/* ── выбор АП ── */
 const drop = $('drop'), fileInput = $('file');
 drop.addEventListener('click', function () { fileInput.click(); });
 drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
@@ -127,8 +225,10 @@ function setFile(f) {
   drop.classList.add('filled');
   $('dropMain').textContent = f.name;
   $('dropSub').textContent = (f.size / 1024).toFixed(0) + ' КБ — нажмите «Собрать ТТ»';
-  $('go').disabled = false;
+  refreshGo();
 }
+
+function refreshGo() { $('go').disabled = !(apFile && registry); }
 
 /* ── лог и прогресс ── */
 function log(msg, kind) {
@@ -143,6 +243,17 @@ function escapeHtml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+
+/* «1 поверхность», «2 поверхности», «5 поверхностей» — числа тут почти всегда
+   мелкие, и «2 поверхностей» в первой же плашке бросается в глаза. */
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return n + ' ' + many;
+  if (b > 1 && b < 5) return n + ' ' + few;
+  if (b === 1) return n + ' ' + one;
+  return n + ' ' + many;
+}
+function surfaces(n) { return plural(n, 'поверхность', 'поверхности', 'поверхностей'); }
 function progress(on, text) {
   $('prog').classList.toggle('on', !!on);
   if (text !== undefined) $('progText').textContent = text;
@@ -150,7 +261,7 @@ function progress(on, text) {
 
 /* ── запуск ── */
 $('go').addEventListener('click', async function () {
-  if (!apFile) return;
+  if (!apFile || !registry) return;
   $('go').disabled = true;
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
@@ -158,7 +269,7 @@ $('go').addEventListener('click', async function () {
 
   try {
     const wb = await L.readXlsx(L.blobSource(apFile));
-    const table = T.findApTable(wb);
+    const table = window.TTCore.findApTable(wb);
     if (!table) {
       throw new Error('Не нашёл таблицу АП: нет строки с колонкой «Оператор» и знакомыми ' +
         'заголовками (Формат экрана / Разрешение / Соотношение сторон / GID). Проверьте файл.');
@@ -166,43 +277,22 @@ $('go').addEventListener('click', async function () {
     log('Таблица найдена: лист «' + table.sheetName + '», строка шапки ' +
         table.headerRow + ', строк данных ' + table.rows.length, 'ok');
 
-    let linker = null;
-    if ($('useYa').checked && $('yaKey').value.trim()) {
-      progress(true, 'Получаю ссылки с Яндекс.Диска…');
-      linker = new T.YandexDiskLinker($('yaKey').value.trim());
-      try {
-        await linker.fetchAll(function (n, total, path) {
-          progress(true, 'Яндекс.Диск: ' + n + (total ? ' из ' + total : '') + ' файлов…');
-        });
-        const pub = linker.files.length - linker.unpublished.length;
-        log('Диск: файлов ' + linker.files.length + ', с постоянной ссылкой ' + pub +
-            (linker.dirsSeen ? ', вложенных папок ' + linker.dirsSeen : ''), 'ok');
-        if (linker.unpublished.length) {
-          log('Не опубликованы по отдельности (' + linker.unpublished.length +
-              ') — ссылок на них не будет:', 'warn');
-          linker.unpublished.slice().sort().forEach(function (n) { log('   • ' + n, 'warn'); });
-        }
-      } catch (e) {
-        log('Ссылки не получены: ' + e.message, 'err');
-        log('Колонка «Ссылка на ТТ» останется пустой. Проверьте ссылку на папку и доступ в интернет.', 'warn');
-        linker = null;
-      }
-    } else {
-      log('Ссылки с Диска не запрашиваем — колонка «Ссылка на ТТ» будет пустой.', 'warn');
+    progress(true, 'Сводлю требования…');
+    result = R.analyze(registry, table, { useDefaults: $('useDef').checked });
+    const s = result.stats;
+
+    if (!result.ap.hasDurationColumn) {
+      log('В АП нет колонки «Длительность, сек» — длительности взяты из справочника связок ' +
+          '«оператор + формат» (' + result.ap.durationFallback.length + ' пар)', 'warn');
     }
-
-    progress(true, 'Обрабатываю строки…');
-    const res = T.processAp(table, linker);
-    misses = res.durationMisses;
-    dedup = T.deduplicate(res.results);
-    log('Строк: ' + res.results.length + ' → после дедупликации ' + dedup.length +
-        ' (удалено дублей: ' + (res.results.length - dedup.length) + ')', 'ok');
-
-    const withDur = dedup.filter(function (r) { return r['Длительность (сек)'] !== ''; }).length;
-    const withLink = dedup.filter(function (r) { return r['Ссылка на ТТ']; }).length;
-    linkStats = { withDur: withDur, withLink: withLink, usedLinker: !!linker };
-    log('Длительность проставлена в ' + withDur + ' из ' + dedup.length + ' строк');
-    if (linker) log('Ссылки найдены для ' + withLink + ' из ' + dedup.length + ' строк');
+    log('Поверхностей: ' + s.apRows + ' → уникальных макетов: ' + s.tasks, 'ok');
+    log('Операторов в АП: ' + s.operators +
+        (s.noTt ? ', из них без пригодных ТТ: ' + s.noTt + ' (' + surfaces(s.noTtScreens) + ')' : ''));
+    if (s.conflicts) log('Макетов с конфликтом требований: ' + s.conflicts, 'warn');
+    if (result.unknownOperators.length) {
+      log('Нет в реестре (' + result.unknownOperators.length + '):', 'err');
+      result.unknownOperators.forEach(function (n) { log('   • ' + n, 'err'); });
+    }
 
     progress(false);
     render();
@@ -212,80 +302,142 @@ $('go').addEventListener('click', async function () {
     log('Ошибка: ' + e.message, 'err');
     console.error(e);
   } finally {
-    $('go').disabled = false;
+    refreshGo();
   }
 });
 
 $('reset').addEventListener('click', function () {
-  apFile = null; dedup = []; misses = new Set(); linkStats = null;
+  apFile = null; result = null; activeTab = 'tasks';
   drop.classList.remove('filled');
   $('dropMain').textContent = 'Выберите файл .xlsx или перетащите сюда';
   $('dropSub').textContent = 'лист и строка с шапкой определяются автоматически';
-  $('go').disabled = true;
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
   $('reset').style.display = 'none';
   fileInput.value = '';
+  refreshGo();
 });
 
-/* ── отрисовка результата ── */
+/* ── отрисовка ── */
 function render() {
-  const noLink = dedup.filter(function (r) { return !r['Ссылка на ТТ']; });
-  const noDur = dedup.filter(function (r) { return r['Длительность (сек)'] === ''; });
+  const s = result.stats;
+  const withConflict = result.tasks.filter(function (t) { return t.conflicts; });
+  const withNotes = result.tasks.filter(function (t) { return t.notes; });
 
   $('tiles').innerHTML =
-    tile(dedup.length, 'уникальных строк', 'good') +
-    tile(linkStats.withDur + ' / ' + dedup.length, 'с длительностью', noDur.length ? 'warn' : '') +
-    (linkStats.usedLinker
-      ? tile(linkStats.withLink + ' / ' + dedup.length, 'со ссылкой на ТТ', noLink.length ? 'warn' : '')
-      : '') +
-    (misses.size ? tile(misses.size, 'пар без длительности', 'bad') : '');
+    tile(s.tasks, 'макетов', 'good') +
+    tile(s.apRows, 'поверхностей') +
+    tile(s.operators, 'операторов') +
+    (s.noTt ? tile(s.noTt, 'без пригодных ТТ', 'bad') : '') +
+    (s.conflicts ? tile(s.conflicts, 'с конфликтом', 'bad') : '') +
+    (s.assumed ? tile(s.assumed, 'с допущениями', 'warn') : '');
 
   let notes = '';
-  if (misses.size) {
-    notes += '<div class="note warn"><b>Не нашлась длительность для ' + misses.size +
-      ' пар (оператор | формат):</b><br>' +
-      [...misses].sort().map(escapeHtml).join('<br>') +
-      '<br><br>Проверьте, что оператор и формат в АП записаны так же, как в справочнике ' +
-      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.).</div>';
+  if (s.noTt) {
+    const list = result.cards.filter(function (c) {
+      return !c.id || /ТТ нет|не заполнять|только юр/i.test(c.status);
+    });
+    notes += '<div class="note warn"><b>Требований оператора нет или они неполные — ' +
+      list.length + ':</b><br>' + list.map(function (c) {
+        return escapeHtml(c.name) + ' — ' + escapeHtml(c.status) +
+          ' (' + surfaces(c.screensAp) + ' в АП)';
+      }).join('<br>') +
+      ($('useDef').checked
+        ? '<br><br>В задании по ним стоит отраслевой дефолт, помеченный как допущение. ' +
+          escapeHtml(registry.defaultsCaveat)
+        : '<br><br>Подстановка дефолта выключена — колонки по этим операторам пустые.') +
+      '</div>';
   }
-  if (linkStats.usedLinker && noLink.length) {
-    notes += '<div class="note info">Без ссылки — <b>' + noLink.length +
-      '</b> комбинаций. Если оператор есть на Диске, но ссылка не подтянулась — сверьте ' +
-      'написание оператора и разрешение в имени файла.</div>';
+  if (withConflict.length) {
+    notes += '<div class="note err"><b>Требования операторов расходятся — ' +
+      plural(withConflict.length, 'макет', 'макета', 'макетов') + '.</b> Одним файлом ' +
+      'такую связку не закрыть: смотрите колонку «Конфликты», возможно, макетов нужно два.</div>';
   }
-  if (!misses.size && (!linkStats.usedLinker || !noLink.length)) {
-    notes += '<div class="note ok">Всё закрыто: длительности и ссылки найдены для всех строк.</div>';
+  if (result.unknownOperators.length) {
+    notes += '<div class="note err"><b>Нет в реестре — ' + result.unknownOperators.length +
+      ':</b> ' + result.unknownOperators.map(escapeHtml).join(', ') +
+      '. Требования по ним не подставлены: сверьте написание или добавьте оператора в реестр.</div>';
+  }
+  if (!s.noTt && !withConflict.length && !result.unknownOperators.length) {
+    notes += '<div class="note ok">Все операторы АП нашлись в реестре, требования не ' +
+      'противоречат друг другу.</div>';
   }
   $('notes').innerHTML = notes;
 
   $('tabs').innerHTML =
-    tab('all', 'Все', dedup.length) +
-    (noLink.length ? tab('nolink', 'Без ссылки', noLink.length) : '') +
-    (noDur.length ? tab('nodur', 'Без длительности', noDur.length) : '');
+    tab('tasks', 'Задание на макеты', result.tasks.length) +
+    tab('cards', 'Карточки операторов', result.cards.length) +
+    (withConflict.length ? tab('conflict', 'Конфликты', withConflict.length) : '') +
+    (withNotes.length ? tab('notes', 'Замечания', withNotes.length) : '');
   [...$('tabs').children].forEach(function (b) {
     b.addEventListener('click', function () { activeTab = b.dataset.k; render(); });
   });
 
-  $('thead').innerHTML = T.COLUMNS.map(function (c) { return '<th>' + c + '</th>'; }).join('');
-
-  const rows = activeTab === 'nolink' ? noLink : activeTab === 'nodur' ? noDur : dedup;
-  $('tbody').innerHTML = rows.map(function (r) {
-    const bad = !r['Ссылка на ТТ'] || r['Длительность (сек)'] === '';
-    return '<tr class="' + (bad ? 'miss' : 'ok') + '">' +
-      '<td>' + escapeHtml(r['Оператор']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Формат экрана']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Разрешение']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Соотношение сторон']) + '</td>' +
-      '<td class="num">' + (r['Длительность (сек)'] === ''
-        ? '<span class="muted">—</span>' : r['Длительность (сек)'] + ' с') + '</td>' +
-      '<td>' + (r['Ссылка на ТТ']
-        ? '<a href="' + escapeHtml(r['Ссылка на ТТ']) + '" target="_blank" rel="noopener">' +
-          escapeHtml(T.DATA.LINK_DISPLAY_TEXT || 'Открыть') + '</a>'
-        : '<span class="muted">нет</span>') + '</td></tr>';
-  }).join('');
+  if (activeTab === 'cards') {
+    $('viewTable').style.display = 'none';
+    $('viewCards').style.display = '';
+    renderCards();
+  } else {
+    $('viewCards').style.display = 'none';
+    $('viewTable').style.display = '';
+    renderTasks(activeTab === 'conflict' ? withConflict : activeTab === 'notes' ? withNotes : result.tasks);
+  }
 
   $('results').classList.add('on');
+}
+
+/* В таблице показываем не все 24 колонки выгрузки: в браузере важно увидеть
+   макет и производственные параметры, а проза про дисклеймеры читается в
+   карточках. В .xlsx уходит всё. */
+const SHOWN = ['№', 'Разрешение', 'Соотношение', 'Длительность, сек', 'Экранов в АП',
+  'Операторы', 'Формат видео', 'Кодек', 'FPS', 'Битрейт, Мбит/с ≤', 'Вес, МБ ≤',
+  'Хронометраж, сек', 'Статика', '⚠ Конфликты', '⚠ Замечания', 'Допущения'];
+
+function taskCell(t, col) {
+  if (col === '№') return String(t.no);
+  if (col === 'Разрешение') return t.res;
+  if (col === 'Соотношение') return t.aspect;
+  if (col === 'Длительность, сек') return t.durNum === null ? '—' : String(t.durNum);
+  if (col === 'Экранов в АП') return String(t.screens);
+  if (col === 'Операторы') return t.operators;
+  if (col === '⚠ Конфликты') return t.conflicts;
+  if (col === '⚠ Замечания') return t.notes;
+  if (col === 'Допущения') return t.assumed;
+  return t.cells[col] || '';
+}
+
+function renderTasks(rows) {
+  $('thead').innerHTML = SHOWN.map(function (c) { return '<th>' + escapeHtml(c) + '</th>'; }).join('');
+  $('tbody').innerHTML = rows.map(function (t) {
+    const bad = !!t.conflicts;
+    return '<tr class="' + (bad ? 'miss' : 'ok') + '">' + SHOWN.map(function (c) {
+      const v = taskCell(t, c);
+      const warn = (c === '⚠ Конфликты' || c === '⚠ Замечания') && v;
+      const nowrap = c === '№' || c === 'Разрешение' || c === 'Соотношение' ||
+        c === 'Длительность, сек' || c === 'FPS';
+      const cls = [nowrap ? 'nowrap' : '', warn ? 'warn-cell' : '', v ? '' : 'muted']
+        .filter(Boolean).join(' ');
+      return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
+        (v ? escapeHtml(v) : '—') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+}
+
+function renderCards() {
+  $('viewCards').innerHTML = result.cards.map(function (c, i) {
+    const blocks = c.blocks.map(function (b) {
+      return '<div class="card-blk' + (b.assumed ? ' assumed' : '') + '">' +
+        '<div class="bt">' + escapeHtml(b.title) + '</div><dl>' +
+        b.items.map(function (it) {
+          return '<dt>' + escapeHtml(it.param) + '</dt><dd>' + escapeHtml(it.value) + '</dd>';
+        }).join('') + '</dl></div>';
+    }).join('');
+    return '<details class="card-op"' + (i === 0 ? ' open' : '') + '><summary>' +
+      '<span class="nm">' + escapeHtml(c.name) + '</span>' +
+      '<span class="meta">' + (c.id ? 'ID ' + escapeHtml(c.id) + ' · ' : '') +
+      surfaces(c.screensAp) + ' в АП · статус ТТ: ' + escapeHtml(c.status) + '</span>' +
+      '</summary>' + blocks + '</details>';
+  }).join('');
 }
 
 function tile(v, k, cls) {
@@ -298,30 +450,31 @@ function tab(k, label, n) {
 
 /* ── выгрузка ── */
 $('dl').addEventListener('click', function () {
-  if (!dedup.length) return;
-  const blob = L.writeXlsx(T.buildReport(dedup));
-  const base = apFile ? apFile.name.replace(/\.[^.]+$/, '') : 'ТТ';
-  L.download(blob, base + ' — ТТ.xlsx');
+  if (!result) return;
+  const blob = L.writeXlsx(R.buildWorkbook(result));
+  const base = apFile ? apFile.name.replace(/\.[^.]+$/, '') : 'АП';
+  const stamp = registry.about.builtAt ? ' (реестр ' + registry.about.builtAt + ')' : '';
+  L.download(blob, base + ' — задание на макеты' + stamp + '.xlsx');
 });
 
 $('copy').addEventListener('click', async function () {
-  const lines = [T.COLUMNS.join('\t')];
-  for (const r of dedup) {
-    lines.push(T.COLUMNS.map(function (c) { return String(r[c] === undefined ? '' : r[c]); }).join('\t'));
+  if (!result) return;
+  const cols = R.TASK_COLUMNS;
+  const lines = [cols.join('\t')];
+  for (const t of result.tasks) {
+    lines.push(cols.map(function (c) { return String(taskCell(t, c)).replace(/\s+/g, ' '); }).join('\t'));
   }
   const text = lines.join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    $('copy').textContent = 'Скопировано ✓';
   } catch (e) {
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); ta.remove();
-    $('copy').textContent = 'Скопировано ✓';
   }
-  setTimeout(function () { $('copy').textContent = 'Копировать таблицу'; }, 1800);
+  $('copy').textContent = 'Скопировано ✓';
+  setTimeout(function () { $('copy').textContent = 'Копировать задание'; }, 1800);
 });
-
 
 /* Плашка про демо-данные. Через log() нельзя: обработчик запуска очищает лог,
    и пояснение исчезало ровно в тот момент, когда становилось нужным. */
@@ -334,33 +487,41 @@ function demoNote(html) {
 }
 
 /* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
-   Демо-АП собрана из настоящих связок справочника, поэтому длительности
-   получаются такие же, как на рабочем файле. Две строки тут намеренные:
-   повтор «3 Арт» показывает склейку дублей, а «РА Ромашка» — как выглядит
-   связка, которой в справочнике нет. */
+   Демо-АП собрана из настоящих операторов реестра, поэтому и требования, и
+   замечания получаются настоящие. Строки подобраны так, чтобы разом показать
+   всё, за чем сюда приходят: склейку операторов в один макет, конфликт
+   требований, оператора без ТТ и оператора, которого в реестре нет. */
 if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
-  // Разрешения взяты те, под которые на Диске действительно лежат ТТ, —
-  // иначе в демо почти вся колонка со ссылками была бы пустой и создавала
-  // ложное впечатление, что ссылки не находятся вообще никогда.
   const rows = [
-    ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон', 'GID'],
-    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100001'],
-    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100002'],
-    ['Russ Outdoor', 'BILLBOARD', '1080x1920', '9:16', 'GID-100003'],
-    ['MAER (Outdoor)', 'MEDIAFACADE', '720x360', '2:1', 'GID-100004'],
-    ['MAER (Outdoor)', 'SUPERSITE', '1152x864', '4:3', 'GID-100005'],
-    ['LBL', 'BILLBOARD', '1920x1080', '16:9', 'GID-100006'],
-    ['2 Этаж', 'SUPERSITE', '960x1344', '5:7', 'GID-100007'],
-    ['РИМ', 'BILLBOARD', '896x320', '14:5', 'GID-100008'],
-    ['РА Ромашка', 'BILLBOARD', '1920x1080', '16:9', 'GID-100009']
+    ['GID', 'Город', 'Оператор', 'Формат экрана', 'Длительность, сек', 'Вид. разрешение', 'Соотношение сторон'],
+    ['D-1', 'Санкт-Петербург', 'РИМ', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-2', 'Казань', 'РИМ', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-3', 'Екатеринбург', 'Хэт-Трик', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-4', 'Нижний Новгород', 'Перспектива', 'BILLBOARD', 5, '720×360', '2:1'],
+    /* Sunlight Indoor и Трансмедиа стоят на одном разрешении и одном слоте
+       намеренно: у первого в ТТ «не ниже 30» fps, у второго ровно 25 — одним
+       файлом это не закрыть, и в колонке «Конфликты» видно, почему. */
+    ['D-5', 'Москва', 'Sunlight Indoor', 'INDOOR_SCREEN', 10, '1920×1080', '16:9'],
+    ['D-6', 'Балашиха', 'Трансмедиа', 'INDOOR_SCREEN', 10, '1920×1080', '16:9'],
+    ['D-7', 'Москва', 'Реклама центр OUTDOOR', 'CITY_BOARD', 5, '896×672', '4:3'],
+    ['D-8', 'Москва', 'Russ Outdoor', 'CITY_FORMAT', 5, '1080×1920', '9:16'],
+    ['D-9', 'Москва', 'Russ Outdoor', 'CITY_FORMAT', 5, '1080×1920', '9:16'],
+    ['D-10', 'Нижний Новгород', 'РА МОСТ', 'INDOOR_SCREEN', 10, '1080×1920', '9:16'],
+    ['D-11', 'Москва', 'РА Ромашка', 'BILLBOARD', 5, '1920×1080', '16:9']
   ];
-  const blob = L.writeXlsx([{ name: 'Адресная программа', cols: [26, 18, 14, 18, 14], rows: rows }]);
+  const blob = L.writeXlsx([{ name: 'АП', cols: [10, 22, 26, 18, 16, 16, 16], rows: rows }]);
   setFile(new File([blob], 'Демо — адресная программа.xlsx', { type: blob.type }));
-  demoNote('<b>Демо-данные.</b> Адресная программа на ' + (rows.length - 1) +
-    ' строк собрана здесь же из настоящих связок справочника. Строка «РА Ромашка» — ' +
-    'намеренная: такой связки в справочнике нет, посмотрите, как это выглядит в результате. ' +
-    'Свой файл можно положить сверху.');
-  $('go').click();
+  demoNote('<b>Демо-данные.</b> Адресная программа на ' + surfaces(rows.length - 1) +
+    ' собрана здесь же из настоящих операторов реестра. В ней намеренно есть ' +
+    'Sunlight Indoor с частотой «не ниже 30» на одном макете с Трансмедиа, у которой ' +
+    'ровно 25 (конфликт), Russ Outdoor и РА МОСТ без ТТ (допущения) и «РА Ромашка», ' +
+    'которой в реестре нет. Свой файл можно положить сверху.');
+  /* Реестр грузится асинхронно — ждём его, иначе кнопка ещё заблокирована. */
+  (function waitRegistry(tries) {
+    if (registry) { $('go').click(); return; }
+    if (tries <= 0) { log('Демо: реестр так и не загрузился', 'err'); return; }
+    setTimeout(function () { waitRegistry(tries - 1); }, 150);
+  })(60);
 }
 
 })();

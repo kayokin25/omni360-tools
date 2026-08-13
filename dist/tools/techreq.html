@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Сбор технических требований</title>
+<title>Технические требования по АП</title>
 <style>
 /* Общий стиль инструментов панели Omni360 (один язык с калькулятором OmniBuy).
    Все цвета — через переменные: тему задаёт панель, применяет lib/theme.js. */
@@ -257,6 +257,36 @@ a:hover { text-decoration: underline; }
 ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 9px; }
 ::-webkit-scrollbar-thumb:hover { filter: brightness(1.2); }
 
+/* Строка состояния реестра и карточки операторов. Цвета — только через
+   переменные tool-ui.css: тему переключает панель, и хардкод здесь означал бы
+   нечитаемый инструмент в светлой теме. */
+.reg-line { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px;
+  color:var(--desc); margin:-4px 0 14px }
+.reg-line b { color:var(--text); font-weight:600 }
+.reg-line .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:none }
+.reg-line .dot.ok { background:var(--ok-text) }
+.reg-line .dot.bad { background:var(--err-text) }
+.reg-line button { background:none; border:none; padding:0; color:var(--accent); cursor:pointer;
+  font:inherit; text-decoration:underline; text-underline-offset:2px }
+.card-op { border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden }
+.card-op > summary { cursor:pointer; padding:10px 14px; display:flex; gap:10px;
+  align-items:baseline; flex-wrap:wrap; background:var(--panel) }
+.card-op > summary::-webkit-details-marker { display:none }
+.card-op > summary .nm { font-weight:600; color:var(--text) }
+.card-op > summary .meta { font-size:12px; color:var(--desc) }
+.card-op[open] > summary { border-bottom:1px solid var(--line) }
+.card-blk { padding:10px 14px; border-top:1px solid var(--line-soft) }
+.card-blk:first-of-type { border-top:none }
+.card-blk .bt { font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:6px }
+.card-blk.assumed { background:var(--warn-bg) }
+.card-blk dl { display:grid; grid-template-columns:minmax(120px,220px) 1fr; gap:4px 14px; margin:0 }
+.card-blk dt { color:var(--desc); font-size:13px }
+.card-blk dd { margin:0; font-size:13px; color:var(--text) }
+td.warn-cell { color:var(--err-text) }
+.chk { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--desc);
+  cursor:pointer; margin:10px 0 4px }
+.chk input { width:auto; accent-color:var(--accent); cursor:pointer }
 </style>
 <script>
 /* Тема инструмента.
@@ -343,15 +373,24 @@ root.OmniTheme = {
     <div class="logo-dot"></div>
     <div>
       <div class="logo-text">Omni360</div>
-      <div class="logo-sub">сбор технических требований</div>
+      <div class="logo-sub">технические требования</div>
     </div>
   </div>
 
   <h1>Технические требования по АП</h1>
   <p class="subtitle">
-    Загрузите адресную программу — инструмент определит длительность ролика для каждой связки
-    «оператор + формат», подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
+    Загрузите адресную программу — инструмент сведёт требования операторов из реестра ТТ
+    в <b>задание на макеты</b>: одна строка на уникальную связку «разрешение × длительность»
+    с самыми строгими из требований, конфликтами и пробелами. Рядом — карточки операторов
+    по блокам A–G.
   </p>
+
+  <div class="reg-line" id="regLine">
+    <span class="dot" id="regDot"></span>
+    <span id="regText">Реестр ТТ загружается…</span>
+    <button id="regPick">подложить свой файл</button>
+  </div>
+  <input type="file" id="regFile" accept=".xlsx,.xlsm">
 
   <div class="section-label">Адресная программа</div>
   <div class="drop" id="drop">
@@ -361,18 +400,9 @@ root.OmniTheme = {
   </div>
   <input type="file" id="file" accept=".xlsx,.xlsm">
 
-  <div class="section-label">Папка с ТТ на Яндекс.Диске</div>
-  <div class="field">
-    <input type="text" id="yaKey" spellcheck="false">
-    <div class="hint">
-      Публичная ссылка на папку. Файлы внутри должны быть опубликованы по отдельности —
-      иначе постоянной ссылки на них нет. Имя файла задаёт привязку:
-      <code>Оператор 1920х1080</code>, <code>Оператор 2:1</code> или <code>Оператор общее</code>.
-    </div>
-  </div>
-  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8;cursor:pointer;margin-bottom:4px">
-    <input type="checkbox" id="useYa" checked style="width:auto;accent-color:#00c6ff;cursor:pointer">
-    подтягивать ссылки на ТТ с Диска
+  <label class="chk">
+    <input type="checkbox" id="useDef" checked>
+    подставлять отраслевой дефолт, где ТТ оператора нет (с пометкой «допущение»)
   </label>
 
   <div class="btn-row">
@@ -393,16 +423,19 @@ root.OmniTheme = {
     <div id="notes"></div>
 
     <div class="tabs" id="tabs"></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr id="thead"></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
+    <div id="viewTable">
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
     </div>
+    <div id="viewCards" style="display:none"></div>
 
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" id="dl">Скачать .xlsx</button>
-      <button class="btn ghost" id="copy">Копировать таблицу</button>
+      <button class="btn ghost" id="copy">Копировать задание</button>
     </div>
   </div>
 
@@ -3073,16 +3106,1108 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
 
 </script>
 <script>
+/* ============================================================================
+   Технические требования по адресной программе — логика.
+
+   Раньше инструмент отдавал ссылку на файл ТТ и длительность ролика: сами
+   требования лежали на Диске картинкой, и в отчёте их не было. Теперь источник
+   требований — реестр ТТ операторов (xlsx, листы «Операторы», «ТТ по
+   конструкциям», «Форматы в системе», «Отраслевой дефолт»), поэтому в отчёт
+   попадают конкретные значения.
+
+   Два листа на выходе, и это главное решение по отображению:
+
+     «Задание на макеты» — 1 строка = 1 уникальный макет (разрешение ×
+        длительность). В строке сведены требования всех операторов, которым
+        этот макет нужен: пересечение форматов файлов, самое строгое из
+        ограничений веса и битрейта, плюс отдельные колонки под конфликты и
+        замечания. Именно это отдаётся клиенту в производство.
+
+     «Карточки операторов» — вертикальная раскладка «Блок | Параметр |
+        Значение» по блокам A–G, свёрнутая в раскрывающиеся группы. 42 колонки
+        реестра в ширину читать невозможно, а карточку — можно.
+
+   Зависит от OmniLib и TTCore (чтение АП и длительность как запасной путь).
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+const L = root.OmniLib;
+const TT = root.TTCore;
+
+const norm = L.normName;
+
+/* Ключ Map «оператор + что-нибудь». Склеиваем через NUL — такого символа нет
+   ни в названиях операторов, ни в разрешениях, поэтому разные пары не могут
+   дать одинаковый ключ. */
+const KEY_SEP = '\u0000';
+
+/* Реестр раздаётся статикой из dist/data — как инвентарь для азимутов.
+   Имя латиницей намеренно: русское имя в URL пришлось бы кодировать, и любая
+   разница в нормализации между Netlify и браузером ломала бы загрузку. */
+const REGISTRY_URL = '/data/tt_registry.xlsx';
+
+/* ────────────────────────────── чтение реестра ─────────────────────────── */
+
+const SHEET = {
+  ABOUT: 'О файле',
+  OPERATORS: 'Операторы',
+  CONSTRUCTIONS: 'ТТ по конструкциям',
+  FORMATS: 'Форматы в системе',
+  DEFAULTS: 'Отраслевой дефолт'
+};
+
+/* Параметры, отсутствие которых делает ТТ непригодными для производства.
+   Список — тот же, что на листе «Пробелы и задачи» в колонке «Чего не
+   хватает»: считаем его сами по пустым ячейкам, чтобы единственным
+   источником правды остался лист «Операторы». */
+const CRITICAL_PARAMS = ['Разрешения, указанные в ТТ', 'Форматы видео', 'Кодек',
+  'Частота кадров', 'Битрейт', 'Макс. вес файла', 'Хронометраж, сек'];
+
+/* Названия параметров на листе «Отраслевой дефолт» короче, чем колонки листа
+   «Операторы» («Мин. высота текста» против «Мин. размер текста»). Держим
+   соответствие явно: молча не совпавший дефолт хуже отсутствующего.
+   «Соотношение сторон / ориентация» в списке нет намеренно — отдельной
+   колонки под него на листе «Операторы» тоже нет. */
+const DEFAULT_TO_PARAM = {
+  'Разрешение макета': 'Разрешения, указанные в ТТ',
+  'Формат видео': 'Форматы видео',
+  'Кодек': 'Кодек',
+  'Частота кадров': 'Частота кадров',
+  'Битрейт': 'Битрейт',
+  'Развёртка / пиксели': 'Развёртка',
+  'Звук': 'Звук',
+  'Макс. вес файла': 'Макс. вес файла',
+  'Хронометраж': 'Хронометраж, сек',
+  'Форматы статики': 'Форматы статики',
+  'Ограничение белого': 'Ограничение белого',
+  'Мин. высота текста': 'Мин. размер текста',
+  'Шрифт': 'Требования к шрифту',
+  'Дисклеймер': 'Дисклеймер',
+  'Знак возрастного ценза': 'Знак возрастного ценза',
+  'Запреты': 'Запреты',
+  'Юр. требования': 'Юр. требования'
+};
+
+function num(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'));
+  return isFinite(n) ? n : 0;
+}
+
+function sheetByName(workbook, name) {
+  for (const s of workbook.sheets) if (s.name === name) return s;
+  return null;
+}
+
+/* Строка шапки — первая, где есть все обязательные заголовки. Ищем, а не
+   берём по номеру: на листе «Операторы» над шапкой ещё строка с подписями
+   блоков, и она вполне может уехать. */
+function findHeaderRow(rows, must) {
+  const n = Math.min(rows.length, 20);
+  for (let i = 0; i < n; i++) {
+    const cells = new Set((rows[i] || []).map(L.cellStr));
+    let ok = true;
+    for (const m of must) if (!cells.has(m)) { ok = false; break; }
+    if (ok) return i;
+  }
+  return -1;
+}
+
+function colMap(header) {
+  const colOf = {};
+  header.forEach(function (name, i) { if (name && !(name in colOf)) colOf[name] = i; });
+  return colOf;
+}
+
+/* Хвост листа «Операторы» — не требования, а служебные поля: они стоят после
+   подписи блока G, и без явного списка блок G забирал бы их себе. В карточке
+   они выводятся отдельно, в блоке «Справка». */
+const META_COLUMNS = new Set(['Расхождение с инвентарём', 'Источник ТТ', 'Примечание']);
+
+/* Блоки A–G берём из строки над шапкой: подписи там стоят в первой колонке
+   каждого блока. Так добавленная в реестр колонка попадёт в свой блок сама,
+   без правки кода. Колонки до первой подписи — шапка оператора (ID, Экранов,
+   Статус ТТ и прочее), в блоки они не идут. */
+function readBlocks(labelRow, header) {
+  const blocks = [];
+  let cur = null;
+  for (let i = 0; i < header.length; i++) {
+    const label = L.cellStr(labelRow[i]);
+    if (label) { cur = { title: label, params: [] }; blocks.push(cur); }
+    const name = header[i];
+    if (name && cur && !META_COLUMNS.has(name)) cur.params.push(name);
+  }
+  return blocks;
+}
+
+function readOperators(sheet) {
+  const idx = findHeaderRow(sheet.rows, ['ID', 'Оператор', 'Статус ТТ']);
+  if (idx < 0) {
+    throw new Error('лист «' + SHEET.OPERATORS + '»: не нашёл строку шапки ' +
+      '(нужны колонки ID, Оператор, Статус ТТ)');
+  }
+  const header = (sheet.rows[idx] || []).map(L.cellStr);
+  const blocks = readBlocks(idx > 0 ? (sheet.rows[idx - 1] || []) : [], header);
+  const colOf = colMap(header);
+  const get = function (row, name) { return name in colOf ? L.cellStr(row[colOf[name]]) : ''; };
+
+  const operators = [];
+  for (let r = idx + 1; r < sheet.rows.length; r++) {
+    const row = sheet.rows[r] || [];
+    const name = get(row, 'Оператор');
+    if (!name) continue;
+
+    const params = {};
+    for (const b of blocks) {
+      for (const p of b.params) {
+        const v = get(row, p);
+        if (v) params[p] = v;
+      }
+    }
+
+    const missing = CRITICAL_PARAMS.filter(function (p) { return !params[p]; });
+
+    operators.push({
+      id: get(row, 'ID'),
+      name: name,
+      norm: norm(name),
+      screens: num(get(row, 'Экранов')),
+      placement: get(row, 'Размещение'),
+      cities: get(row, 'Города (топ-3)'),
+      resInSystem: get(row, 'Разрешения в системе (топ-5)'),
+      slots: get(row, 'Доступные слоты, сек (по инвентарю)'),
+      status: get(row, 'Статус ТТ'),
+      params: params,
+      missing: missing,
+      mismatch: get(row, 'Расхождение с инвентарём'),
+      source: get(row, 'Источник ТТ'),
+      note: get(row, 'Примечание')
+    });
+  }
+  return { blocks: blocks, operators: operators };
+}
+
+function readConstructions(sheet) {
+  if (!sheet) return new Map();
+  const idx = findHeaderRow(sheet.rows, ['Оператор', 'Формат / конструкция']);
+  if (idx < 0) return new Map();
+  const colOf = colMap((sheet.rows[idx] || []).map(L.cellStr));
+  const get = function (row, name) { return name in colOf ? L.cellStr(row[colOf[name]]) : ''; };
+
+  const byOp = new Map();
+  for (let r = idx + 1; r < sheet.rows.length; r++) {
+    const row = sheet.rows[r] || [];
+    const op = get(row, 'Оператор');
+    if (!op) continue;
+    const item = {
+      operator: op,
+      format: get(row, 'Формат / конструкция'),
+      where: get(row, 'Адрес или город'),
+      size: get(row, 'Физический размер'),
+      res: get(row, 'Разрешение, px'),
+      aspect: get(row, 'Соотношение'),
+      video: get(row, 'Видео'),
+      weight: get(row, 'Вес / битрейт'),
+      other: get(row, 'Прочее')
+    };
+    const k = norm(op);
+    if (!byOp.has(k)) byOp.set(k, []);
+    byOp.get(k).push(item);
+  }
+  return byOp;
+}
+
+/* Лист «Форматы в системе» — факт из инвентаря: какие разрешения реально есть
+   у оператора и какие длительности слотов на них доступны. Нужен, чтобы
+   проверить длительность из АП, а не поверить ей на слово. */
+function readFormats(sheet) {
+  const byOpRes = new Map();
+  if (!sheet) return byOpRes;
+  const idx = findHeaderRow(sheet.rows, ['Оператор', 'Разрешение, px']);
+  if (idx < 0) return byOpRes;
+  const colOf = colMap((sheet.rows[idx] || []).map(L.cellStr));
+  const get = function (row, name) { return name in colOf ? L.cellStr(row[colOf[name]]) : ''; };
+
+  for (let r = idx + 1; r < sheet.rows.length; r++) {
+    const row = sheet.rows[r] || [];
+    const op = get(row, 'Оператор');
+    const res = L.normRes(get(row, 'Разрешение, px'));
+    if (!op || !res) continue;
+    byOpRes.set(norm(op) + KEY_SEP + res, {
+      slots: get(row, 'Доступные слоты, сек'),
+      aspect: get(row, 'Соотношение'),
+      screens: num(get(row, 'Экранов')),
+      physical: get(row, 'Физический размер поверхности, мм')
+    });
+  }
+  return byOpRes;
+}
+
+function readDefaults(sheet, warnings, knownParams) {
+  const out = { list: [], byParam: {}, caveat: '' };
+  const list = out.list, byParam = out.byParam;
+  if (!sheet) return out;
+  const idx = findHeaderRow(sheet.rows, ['Параметр']);
+  if (idx < 0) return out;
+  const colOf = colMap((sheet.rows[idx] || []).map(L.cellStr));
+  const vCol = 'Безопасное значение по умолчанию' in colOf
+    ? colOf['Безопасное значение по умолчанию'] : 1;
+
+  for (let r = idx + 1; r < sheet.rows.length; r++) {
+    const row = sheet.rows[r] || [];
+    const key = L.cellStr(row[colOf['Параметр']]);
+    const value = L.cellStr(row[vCol]);
+    if (!key || !value) continue;
+    /* «ВАЖНО» на этом листе — не параметр, а оговорка про то, что дефолт
+       нельзя подавать как требование оператора. Показываем её отдельно. */
+    if (key === 'ВАЖНО') { out.caveat = value; continue; }
+    const param = DEFAULT_TO_PARAM[key];
+    if (!param) { list.push({ key: key, param: null, value: value }); continue; }
+    if (knownParams && !knownParams.has(param)) {
+      warnings.push('отраслевой дефолт «' + key + '» ссылается на параметр «' + param +
+        '», которого нет среди колонок листа «' + SHEET.OPERATORS + '»');
+    }
+    list.push({ key: key, param: param, value: value });
+    byParam[param] = value;
+  }
+  return out;
+}
+
+function readAbout(sheet) {
+  const about = { builtAt: '', inventory: '' };
+  if (!sheet) return about;
+  for (const row of sheet.rows) {
+    const k = L.cellStr((row || [])[0]);
+    const v = L.cellStr((row || [])[1]);
+    if (k === 'Дата сборки') about.builtAt = v;
+    if (k === 'Источник инвентаря') about.inventory = v;
+  }
+  return about;
+}
+
+function readRegistry(workbook) {
+  const opsSheet = sheetByName(workbook, SHEET.OPERATORS);
+  if (!opsSheet) {
+    throw new Error('в файле нет листа «' + SHEET.OPERATORS + '» — это не реестр ТТ. ' +
+      'Листы в файле: ' + workbook.sheets.map(function (s) { return s.name; }).join(', '));
+  }
+
+  const warnings = [];
+  const parsed = readOperators(opsSheet);
+
+  const knownParams = new Set();
+  for (const b of parsed.blocks) for (const p of b.params) knownParams.add(p);
+
+  const byNorm = new Map(), byId = new Map();
+  for (const op of parsed.operators) {
+    /* Тёзок в реестре быть не должно: он построен по операторам системы, где
+       имя уникально. Если два — молча потерять второго нельзя. */
+    if (byNorm.has(op.norm)) warnings.push('в реестре два оператора с одним именем: ' + op.name);
+    else byNorm.set(op.norm, op);
+    if (op.id) byId.set(String(op.id), op);
+  }
+
+  const defaults = readDefaults(sheetByName(workbook, SHEET.DEFAULTS), warnings, knownParams);
+
+  return {
+    about: readAbout(sheetByName(workbook, SHEET.ABOUT)),
+    blocks: parsed.blocks,
+    operators: parsed.operators,
+    byNorm: byNorm,
+    byId: byId,
+    constructions: readConstructions(sheetByName(workbook, SHEET.CONSTRUCTIONS)),
+    formats: readFormats(sheetByName(workbook, SHEET.FORMATS)),
+    defaults: defaults.list,
+    defaultsByParam: defaults.byParam,
+    defaultsCaveat: defaults.caveat,
+    warnings: warnings
+  };
+}
+
+/* ────────────────────────── разбор значений из ТТ ──────────────────────── */
+
+/* Синонимы форматов и кодеков. Ключ — normName от подписи: пунктуация там
+   уже превращена в пробелы, поэтому «H.264 / AVC» и «H264» сходятся в один
+   ключ. Без этого пересечение форматов у двух операторов пустело на разном
+   написании одного и того же. */
+const TOKEN_SYNONYMS = {
+  'mp4': 'MP4', 'mpeg 4': 'MP4', 'mpeg4': 'MP4', 'mp4 mpeg 4': 'MP4',
+  'h 264 avc': 'H.264/AVC', 'h 264': 'H.264/AVC', 'h264': 'H.264/AVC', 'avc': 'H.264/AVC',
+  'h 265': 'H.265/HEVC', 'hevc': 'H.265/HEVC',
+  'mov': 'MOV', 'mkv': 'MKV', 'avi': 'AVI',
+  'jpeg': 'JPEG', 'jpg': 'JPEG', 'jpeg jpg': 'JPEG',
+  'png': 'PNG', 'gif': 'GIF', 'tga': 'TGA', 'tif': 'TIFF', 'tiff': 'TIFF', 'bmp': 'BMP',
+  'apple prores': 'Apple ProRes', 'prores': 'Apple ProRes',
+  'uncompressed': 'Uncompressed', 'uncompressed без сжатия': 'Uncompressed',
+  'без сжатия': 'Uncompressed',
+  'rgb': 'RGB', 'cmyk': 'CMYK', 'srgb': 'sRGB'
+};
+
+/* Значение вида «MP4, MPEG-4 (MOV тоже)» → ['MP4'].
+   Делим только по запятой и точке с запятой: «H.264 / AVC» — один кодек,
+   записанный двумя именами, и делить его по «/» нельзя. Скобки срезаем до
+   деления — внутри них у операторов встречается своя точка с запятой. */
+function tokens(value) {
+  const parens = [];
+  const flat = String(value).replace(/\([^()]*\)/g, function (m) {
+    parens.push(m.slice(1, -1).trim());
+    return ' ';
+  });
+  const out = [];
+  for (const part of flat.split(/[,;]/)) {
+    const t = part.trim().replace(/\s+/g, ' ');
+    if (!t) continue;
+    const key = norm(t);
+    if (Object.prototype.hasOwnProperty.call(TOKEN_SYNONYMS, key)) {
+      out.push(TOKEN_SYNONYMS[key]);
+      continue;
+    }
+    /* Незнакомую подпись пропускаем, только если она похожа на название
+       формата: начинается с буквы, короткая, без цифр в начале. Иначе в
+       пересечение попадают куски прозы вроде «75–92 dpi». */
+    if (!/^[A-Za-z][A-Za-z0-9.\-/ ]{0,20}$/.test(t)) continue;
+    if (t.split(' ').length > 3) continue;
+    out.push(t);
+  }
+  /* Оговорка в скобках на два слова — обычно просто второе имя формата
+     («MP4 (MPEG-4)»), а вот фраза длиннее — уже исключение по конструкции,
+     и его нельзя терять при сведении. */
+  const caveat = parens.some(function (p) { return p.split(/\s+/).length > 2; });
+  return { list: uniq(out), caveat: caveat };
+}
+
+function uniq(arr) {
+  const seen = new Set(), out = [];
+  for (const v of arr) if (!seen.has(v)) { seen.add(v); out.push(v); }
+  return out;
+}
+
+/* «не более 10 МБ» → 10. «по формату: 1 МБ (ситиформат), 2 МБ …, 100 МБ» → 1:
+   макет на 1 МБ проходит всюду, поэтому из перечисления берём минимум.
+   Отрицательный просмотр после «Мб» обязателен — иначе «3 Мбит/с» прочитается
+   как 3 мегабайта. */
+const MB_RE = /(\d+(?:[.,]\d+)?)\s*(?:мбайт|мб|mb)(?!ит|it|ps|\/)/gi;
+const BITRATE_RE = /(\d+(?:[.,]\d+)?)\s*(?:[–—-]\s*(\d+(?:[.,]\d+)?)\s*)?(кбит|kbps|kbit|мбит|mbit|mbps|mb\s*\/\s*s)/gi;
+
+function parseMb(value) {
+  const out = [];
+  let m;
+  MB_RE.lastIndex = 0;
+  while ((m = MB_RE.exec(value))) out.push(parseFloat(String(m[1]).replace(',', '.')));
+  return out.length ? Math.min.apply(null, out) : null;
+}
+
+/* Битрейт приводим к Мбит/с. Из диапазона «10–20 Мбит» берём нижнюю границу:
+   это то, что гарантированно принимают все. */
+function parseMbps(value) {
+  const out = [];
+  let m;
+  BITRATE_RE.lastIndex = 0;
+  while ((m = BITRATE_RE.exec(value))) {
+    const lo = parseFloat(String(m[1]).replace(',', '.'));
+    if (!isFinite(lo)) continue;
+    const kilo = /кбит|kbps|kbit/i.test(m[3]);
+    out.push(kilo ? lo / 1000 : lo);
+  }
+  return out.length ? Math.min.apply(null, out) : null;
+}
+
+/* Разрешения, которые оператор перечислил в ТТ. Требуем минимум две цифры
+   с каждой стороны: иначе «6х3 → 1440x720» дало бы фантомное «6x3», а
+   физический размер «10,56x5,76» — «56x5». */
+function ttResolutions(value) {
+  const out = new Set();
+  const re = /(\d{2,5})\s*[xхXХ×*]\s*(\d{2,5})/g;
+  let m;
+  while ((m = re.exec(String(value)))) out.add(parseInt(m[1], 10) + 'x' + parseInt(m[2], 10));
+  return out;
+}
+
+function parseSeconds(value) {
+  const out = new Set();
+  const re = /(\d{1,4})/g;
+  let m;
+  while ((m = re.exec(String(value)))) out.add(parseInt(m[1], 10));
+  return out;
+}
+
+function fmtNum(n) {
+  const s = Math.round(n * 1000) / 1000;
+  return String(s).replace('.', ',');
+}
+
+/* ─────────────────────── сведение требований по макету ─────────────────── */
+
+/* Как сводить каждый параметр в строку «Задания на макеты».
+     set     — пересечение перечислений (что примут все операторы разом)
+     minMb   — минимум из ограничений веса
+     minMbps — минимум из ограничений битрейта
+     fps     — точное совпадение, иначе конфликт
+     list    — перечисление значений с указанием операторов
+   Числовое сведение только там, где направление однозначно: и вес, и битрейт
+   задаются как «не более», поэтому минимум безопасен. «Мин. размер текста» и
+   «Дисклеймер» сведены как list намеренно — в них числа вперемешку с прозой
+   («не менее 9 px (для текста высотой до 13 px…)»), и любой автоматический
+   максимум был бы выдумкой. */
+const TASK_PARAMS = [
+  { col: 'Формат видео', param: 'Форматы видео', merge: 'set', w: 15 },
+  { col: 'Кодек', param: 'Кодек', merge: 'set', w: 15 },
+  { col: 'FPS', param: 'Частота кадров', merge: 'fps', w: 10 },
+  { col: 'Битрейт, Мбит/с ≤', param: 'Битрейт', merge: 'minMbps', w: 18 },
+  { col: 'Вес, МБ ≤', param: 'Макс. вес файла', merge: 'minMb', w: 16 },
+  { col: 'Звук', param: 'Звук', merge: 'list', w: 12 },
+  { col: 'Хронометраж, сек', param: 'Хронометраж, сек', merge: 'list', w: 16 },
+  { col: 'Статика', param: 'Форматы статики', merge: 'set', w: 14 },
+  { col: 'Цветовая модель', param: 'Цветовая модель', merge: 'set', w: 14 },
+  { col: 'Ограничение белого', param: 'Ограничение белого', merge: 'list', w: 30 },
+  { col: 'Мин. размер текста', param: 'Мин. размер текста', merge: 'list', w: 24 },
+  { col: 'Дисклеймер', param: 'Дисклеймер', merge: 'list', w: 28 },
+  { col: 'Знак ценза', param: 'Знак возрастного ценза', merge: 'list', w: 24 },
+  { col: 'Ночное вещание', param: 'Ночное вещание', merge: 'list', w: 30 }
+];
+
+const TASK_HEAD = ['№', 'Разрешение', 'Соотношение', 'Длительность, сек',
+  'Экранов в АП', 'Операторов', 'Операторы'];
+const TASK_TAIL = ['⚠ Конфликты', '⚠ Замечания', 'Допущения'];
+
+const TASK_COLUMNS = TASK_HEAD
+  .concat(TASK_PARAMS.map(function (p) { return p.col; }))
+  .concat(TASK_TAIL);
+
+/* Собранные по операторам значения одного параметра. assumed — значение взято
+   из отраслевого дефолта, а не из ТТ оператора. */
+function collect(group, param, reg, useDefaults) {
+  const out = [];
+  for (const e of group.ops) {
+    let value = e.rec ? (e.rec.params[param] || '') : '';
+    let assumed = false;
+    if (!value && useDefaults && reg.defaultsByParam[param]) {
+      value = reg.defaultsByParam[param];
+      assumed = true;
+    }
+    if (value) out.push({ op: e.name, value: value, assumed: assumed });
+  }
+  return out;
+}
+
+function byValue(entries) {
+  const map = new Map();
+  for (const e of entries) {
+    if (!map.has(e.value)) map.set(e.value, []);
+    map.get(e.value).push(e.op);
+  }
+  return map;
+}
+
+/* Перечисление «значение (кто так требует)». Больше двух разных значений в
+   ячейку не кладём: строка «Задания» должна оставаться читаемой, а подробности
+   всё равно лежат в карточках. */
+function joinByOperator(entries, limit) {
+  const map = byValue(entries);
+  if (map.size === 1) return entries[0].value;
+  const parts = [];
+  let shown = 0, hidden = 0;
+  for (const [value, ops] of map) {
+    if (shown < (limit || 2)) { parts.push(value + ' (' + ops.join(', ') + ')'); shown++; }
+    else hidden++;
+  }
+  if (hidden) parts.push('ещё ' + hidden + ' — см. карточки операторов');
+  return parts.join(' | ');
+}
+
+function mergeSet(entries) {
+  let inter = null;
+  const unclear = [];
+  let caveat = false;
+  for (const e of entries) {
+    const t = tokens(e.value);
+    if (t.caveat) caveat = true;
+    if (!t.list.length) { unclear.push(e.op); continue; }
+    if (inter === null) { inter = new Set(t.list); continue; }
+    const prev = inter;
+    inter = new Set(t.list.filter(function (x) { return prev.has(x); }));
+  }
+  if (inter === null) return { value: joinByOperator(entries), conflict: '' };
+  if (!inter.size) {
+    return { value: joinByOperator(entries), conflict: 'нет ни одного формата, который примут все' };
+  }
+  let value = [...inter].join(', ');
+  if (unclear.length) value += ' · формулировка у ' + unclear.join(', ') + ' — см. карточки';
+  else if (caveat) value += ' · есть оговорки по конструкциям — см. карточки';
+  return { value: value, conflict: '' };
+}
+
+/* 25 fps и «не ниже 30» — требования несовместимые: одним роликом их не
+   закрыть, нужны два макета. Поэтому не выбираем «построже», а сообщаем. */
+function mergeFps(entries) {
+  const map = byValue(entries);
+  if (map.size <= 1) return { value: entries.length ? entries[0].value : '', conflict: '' };
+  const plain = [...map.keys()].every(function (v) { return /^\s*\d+(\s*fps)?\s*$/i.test(v); });
+  const nums = new Set([...map.keys()].map(function (v) { return parseInt(v, 10); }));
+  if (plain && nums.size === 1) return { value: String([...nums][0]), conflict: '' };
+  return { value: joinByOperator(entries), conflict: 'частота кадров не совпадает у операторов' };
+}
+
+function mergeMin(entries, parse, unit) {
+  let best = null, bestOp = '';
+  const unparsed = [];
+  for (const e of entries) {
+    const v = parse(e.value);
+    if (v === null) { unparsed.push(e.op); continue; }
+    if (best === null || v < best) { best = v; bestOp = e.op; }
+  }
+  if (best === null) return { value: joinByOperator(entries), conflict: '' };
+  let value = '≤ ' + fmtNum(best) + ' ' + unit;
+  if (byValue(entries).size > 1) value += ' · строже всех ' + bestOp;
+  if (unparsed.length) value += ' · формулировка у ' + unparsed.join(', ') + ' — см. карточки';
+  return { value: value, conflict: '' };
+}
+
+function mergeParam(spec, entries) {
+  if (!entries.length) return { value: '', conflict: '' };
+  if (spec.merge === 'set') return mergeSet(entries);
+  if (spec.merge === 'fps') return mergeFps(entries);
+  if (spec.merge === 'minMb') return mergeMin(entries, parseMb, 'МБ');
+  if (spec.merge === 'minMbps') return mergeMin(entries, parseMbps, 'Мбит/с');
+  return { value: joinByOperator(entries), conflict: '' };
+}
+
+/* ──────────────────────────── чтение и разбор АП ───────────────────────── */
+
+const AP_FIELDS = {
+  operator: ['Оператор'],
+  format: ['Формат экрана', 'Формат'],
+  resolution: ['Вид. разрешение', 'Разрешение'],
+  aspect: ['Соотношение сторон', 'Соотношение'],
+  duration: ['Длительность, сек', 'Длительность', 'Длительность (сек)'],
+  city: ['Город'],
+  gid: ['GID']
+};
+
+/* Строки АП в вид, с которым дальше работаем. Длительность берём из АП: она
+   там теперь есть штатной колонкой. Если колонки нет (старые файлы) —
+   падаем на справочник связок из tt-core, как было раньше. */
+function readAp(table) {
+  const rows = [];
+  const durationFallback = [];
+  const hasDurCol = AP_FIELDS.duration.some(function (n) { return n in table.colOf; });
+
+  for (const row of table.rows) {
+    const operator = L.cellStr(getField(table, row, AP_FIELDS.operator));
+    if (!operator) continue;
+    const format = L.cellStr(getField(table, row, AP_FIELDS.format));
+    const resRaw = L.cellStr(getField(table, row, AP_FIELDS.resolution));
+    const aspectRaw = L.cellStr(getField(table, row, AP_FIELDS.aspect));
+
+    let duration = '';
+    if (hasDurCol) {
+      const d = num(getField(table, row, AP_FIELDS.duration));
+      if (d > 0) duration = d;
+    }
+    if (duration === '') {
+      const d = TT.lookupDuration(operator, format);
+      if (d !== null) { duration = d; durationFallback.push(operator + ' | ' + format); }
+    }
+
+    const res = L.normRes(resRaw);
+    let aspect = L.normAspect(aspectRaw);
+    if (!aspect && res) {
+      const wh = L.parseRes(res);
+      const r = L.reduceRatio(wh[0], wh[1]);
+      aspect = r[0] + ':' + r[1];
+    }
+
+    rows.push({
+      operator: operator,
+      format: format,
+      resolution: res || resRaw,
+      aspect: aspect || '',
+      duration: duration,
+      city: L.cellStr(getField(table, row, AP_FIELDS.city)),
+      gid: L.cellStr(getField(table, row, AP_FIELDS.gid))
+    });
+  }
+  return { rows: rows, hasDurationColumn: hasDurCol, durationFallback: uniq(durationFallback) };
+}
+
+function getField(table, row, names) {
+  for (const n of names) {
+    if (n in table.colOf) {
+      const v = row[table.colOf[n]];
+      if (v !== null && v !== undefined && v !== '') return v;
+    }
+  }
+  return '';
+}
+
+/* Оператор из АП → запись реестра. Оба имени приходят из Omniboard, поэтому
+   обычно сходятся напрямую; алиасы из tt-data.js оставлены вторым заходом для
+   файлов, где имя записано по-своему. */
+function matchOperator(reg, apName) {
+  const n = norm(apName);
+  if (reg.byNorm.has(n)) return reg.byNorm.get(n);
+  if (TT && TT.operatorToken) {
+    const alias = TT.operatorToken(apName);
+    if (alias !== n && reg.byNorm.has(alias)) return reg.byNorm.get(alias);
+  }
+  return null;
+}
+
+/* ──────────────────────── замечания по одному макету ───────────────────── */
+
+/* Что стоит проверить руками до отправки клиенту. Считается по фактам
+   реестра, ничего не додумывая: разрешения из ТТ, слоты из инвентаря,
+   хронометраж и кратность из ТТ, статус ТТ оператора. */
+function notesFor(reg, group, entry) {
+  const out = [];
+  const rec = entry.rec;
+  if (!rec) return ['нет в реестре — сверьте написание оператора'];
+
+  if (/ТТ нет|не заполнять|только юр/i.test(rec.status)) out.push('статус ТТ: ' + rec.status);
+
+  const declared = ttResolutions(rec.params['Разрешения, указанные в ТТ'] || '');
+  if (declared.size && group.res !== '—' && !declared.has(group.res)) {
+    out.push('разрешение ' + group.res + ' не заявлено в ТТ оператора');
+  }
+
+  if (group.durNum) {
+    const fmt = reg.formats.get(rec.norm + KEY_SEP + group.res);
+    const slots = fmt ? fmt.slots : rec.slots;
+    if (slots) {
+      const allowed = parseSeconds(slots);
+      if (allowed.size && !allowed.has(group.durNum)) {
+        out.push(group.durNum + ' сек нет среди слотов инвентаря (' + slots + ')');
+      }
+    }
+    const chron = rec.params['Хронометраж, сек'];
+    if (chron) {
+      const allowed = parseSeconds(chron);
+      if (allowed.size && !allowed.has(group.durNum)) {
+        out.push('в ТТ хронометраж ' + chron + ' — не ' + group.durNum + ' сек');
+      }
+    }
+    const step = rec.params['Кратность хронометража'];
+    if (step) {
+      const m = /(\d+)/.exec(step);
+      if (m && group.durNum % parseInt(m[1], 10) !== 0) {
+        out.push(group.durNum + ' сек не кратно ' + m[1] + ' сек');
+      }
+    }
+  }
+
+  if (reg.constructions.has(rec.norm)) {
+    out.push('есть отдельные ТТ по конструкциям (' + reg.constructions.get(rec.norm).length + ')');
+  }
+  return out;
+}
+
+/* ───────────────────────────── сборка результата ───────────────────────── */
+
+/* Группируем строки АП по «разрешение × длительность» — это и есть один
+   макет. Формат экрана в ключ не берём: под разные форматы с одинаковым
+   разрешением и слотом делается один и тот же файл. */
+function buildTasks(reg, apRows, opts) {
+  const useDefaults = !opts || opts.useDefaults !== false;
+  const groups = new Map();
+  const unknownOperators = new Set();
+
+  for (const r of apRows) {
+    const res = r.resolution || '—';
+    const durKey = r.duration === '' ? '—' : String(r.duration);
+    const key = res + KEY_SEP + durKey;
+
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        res: res, aspect: r.aspect, dur: durKey,
+        durNum: r.duration === '' ? null : Number(r.duration),
+        screens: 0, formats: new Set(), cities: new Set(),
+        opByKey: new Map(), ops: []
+      };
+      groups.set(key, g);
+    }
+    g.screens++;
+    if (r.format) g.formats.add(r.format);
+    if (r.city) g.cities.add(r.city);
+    if (!g.aspect && r.aspect) g.aspect = r.aspect;
+
+    const ok = norm(r.operator);
+    let e = g.opByKey.get(ok);
+    if (!e) {
+      const rec = matchOperator(reg, r.operator);
+      if (!rec) unknownOperators.add(r.operator);
+      e = { name: r.operator, rec: rec, screens: 0 };
+      g.opByKey.set(ok, e);
+      g.ops.push(e);
+    }
+    e.screens++;
+  }
+
+  const tasks = [];
+  for (const g of groups.values()) {
+    g.ops.sort(function (a, b) { return b.screens - a.screens; });
+
+    const cells = {};
+    const conflicts = [], assumptions = [];
+
+    for (const spec of TASK_PARAMS) {
+      const entries = collect(g, spec.param, reg, useDefaults);
+      const merged = mergeParam(spec, entries);
+      cells[spec.col] = merged.value;
+      if (merged.conflict) conflicts.push(spec.col + ': ' + merged.conflict);
+      const assumedOps = entries.filter(function (e) { return e.assumed; })
+        .map(function (e) { return e.op; });
+      if (assumedOps.length) assumptions.push({ param: spec.col, ops: assumedOps });
+    }
+
+    const notes = [];
+    for (const e of g.ops) {
+      const n = notesFor(reg, g, e);
+      if (n.length) notes.push(e.name + ': ' + n.join('; '));
+    }
+
+    /* Допущения группируем по оператору, а не по параметру: читателю важно
+       «у этого оператора ТТ нет, вот что подставлено», а не наоборот. */
+    const byOp = new Map();
+    for (const a of assumptions) {
+      for (const op of a.ops) {
+        if (!byOp.has(op)) byOp.set(op, []);
+        byOp.get(op).push(a.param);
+      }
+    }
+    const assumedText = [...byOp.entries()].map(function (e) {
+      return e[0] + ': отраслевой дефолт (' + e[1].join(', ') + ')';
+    }).join('; ');
+
+    tasks.push({
+      res: g.res,
+      aspect: g.aspect || '',
+      dur: g.dur,
+      durNum: g.durNum,
+      screens: g.screens,
+      opCount: g.ops.length,
+      operators: g.ops.map(function (e) { return e.name + ' (' + e.screens + ')'; }).join(', '),
+      formats: [...g.formats].join(', '),
+      cells: cells,
+      conflicts: conflicts.join('; '),
+      notes: notes.join('; '),
+      assumed: assumedText,
+      ops: g.ops
+    });
+  }
+
+  /* Сортировка: сначала самые массовые макеты — с них начинают производство. */
+  tasks.sort(function (a, b) {
+    if (b.screens !== a.screens) return b.screens - a.screens;
+    return a.res < b.res ? -1 : a.res > b.res ? 1 : 0;
+  });
+  tasks.forEach(function (t, i) { t.no = i + 1; });
+
+  return { tasks: tasks, unknownOperators: [...unknownOperators].sort() };
+}
+
+/* Карточки — только по операторам этой АП, отсортированным по числу
+   поверхностей в ней. */
+function buildCards(reg, apRows, opts) {
+  const useDefaults = !opts || opts.useDefaults !== false;
+  const byOp = new Map();
+
+  for (const r of apRows) {
+    const k = norm(r.operator);
+    let c = byOp.get(k);
+    if (!c) {
+      c = {
+        name: r.operator, rec: matchOperator(reg, r.operator),
+        screens: 0, res: new Map(), durs: new Set()
+      };
+      byOp.set(k, c);
+    }
+    c.screens++;
+    if (r.resolution) c.res.set(r.resolution, (c.res.get(r.resolution) || 0) + 1);
+    if (r.duration !== '') c.durs.add(Number(r.duration));
+  }
+
+  const cards = [];
+  for (const c of byOp.values()) {
+    const rec = c.rec;
+    const blocks = [];
+
+    if (rec) {
+      for (const b of reg.blocks) {
+        const items = [];
+        for (const p of b.params) {
+          if (rec.params[p]) items.push({ param: p, value: rec.params[p], assumed: false });
+        }
+        if (items.length) blocks.push({ title: b.title, items: items });
+      }
+
+      /* Отраслевой дефолт — отдельным блоком в конце и только там, где
+         оператор молчит. Смешивать его с настоящими требованиями нельзя:
+         читатель обязан видеть, где кончаются ТТ оператора. */
+      if (useDefaults) {
+        const items = [];
+        for (const d of reg.defaults) {
+          if (!d.param || rec.params[d.param]) continue;
+          items.push({ param: d.param, value: d.value, assumed: true });
+        }
+        if (items.length) {
+          blocks.push({ title: 'Допущение — отраслевой дефолт', items: items, assumed: true });
+        }
+      }
+    }
+
+    const info = [];
+    const resList = [...c.res.entries()].sort(function (a, b) { return b[1] - a[1]; })
+      .map(function (e) { return e[0] + ' (' + e[1] + ')'; }).join(', ');
+    info.push({ param: 'Разрешения в этой АП', value: resList });
+    if (c.durs.size) {
+      info.push({
+        param: 'Длительности в этой АП',
+        value: [...c.durs].sort(function (a, b) { return a - b; }).join(' / ') + ' сек'
+      });
+    }
+    if (rec) {
+      if (rec.slots) info.push({ param: 'Доступные слоты по инвентарю', value: rec.slots + ' сек' });
+      if (rec.missing.length) info.push({ param: 'Не указано оператором', value: rec.missing.join(', ') });
+      if (rec.mismatch) info.push({ param: 'Расхождение с инвентарём', value: rec.mismatch });
+      if (rec.note) info.push({ param: 'Примечание', value: rec.note });
+      if (rec.source) info.push({ param: 'Источник ТТ', value: rec.source });
+      const cons = reg.constructions.get(rec.norm);
+      if (cons) {
+        info.push({
+          param: 'ТТ по конструкциям',
+          value: cons.length + ' листов: ' + uniq(cons.map(function (x) { return x.format; }))
+            .slice(0, 8).join(', ')
+        });
+      }
+    } else {
+      info.push({
+        param: 'Нет в реестре',
+        value: 'оператор не найден по имени — сверьте написание или добавьте его в реестр'
+      });
+    }
+
+    blocks.push({ title: 'Справка', items: info });
+
+    cards.push({
+      name: c.name,
+      id: rec ? rec.id : '',
+      status: rec ? rec.status : 'нет в реестре',
+      screensAp: c.screens,
+      screensTotal: rec ? rec.screens : 0,
+      placement: rec ? rec.placement : '',
+      blocks: blocks
+    });
+  }
+
+  cards.sort(function (a, b) { return b.screensAp - a.screensAp; });
+  return cards;
+}
+
+function analyze(reg, table, opts) {
+  const ap = readAp(table);
+  const built = buildTasks(reg, ap.rows, opts);
+  const cards = buildCards(reg, ap.rows, opts);
+
+  const conflicts = built.tasks.filter(function (t) { return t.conflicts; });
+  const noTt = cards.filter(function (c) {
+    return !c.id || /ТТ нет|не заполнять|только юр/i.test(c.status);
+  });
+
+  return {
+    ap: ap,
+    tasks: built.tasks,
+    cards: cards,
+    unknownOperators: built.unknownOperators,
+    stats: {
+      apRows: ap.rows.length,
+      tasks: built.tasks.length,
+      operators: cards.length,
+      conflicts: conflicts.length,
+      assumed: built.tasks.filter(function (t) { return t.assumed; }).length,
+      noTt: noTt.length,
+      noTtScreens: noTt.reduce(function (s, c) { return s + c.screensAp; }, 0)
+    }
+  };
+}
+
+/* ─────────────────────────────── выгрузка xlsx ─────────────────────────── */
+
+function taskRow(t) {
+  const row = [
+    { v: t.no, s: L.S.INT },
+    { v: t.res, s: L.S.BODY },
+    { v: t.aspect, s: L.S.BODY },
+    { v: t.durNum === null ? '—' : t.durNum, s: t.durNum === null ? L.S.WARN : L.S.INT },
+    { v: t.screens, s: L.S.INT },
+    { v: t.opCount, s: L.S.INT },
+    { v: t.operators, s: L.S.BODY }
+  ];
+  /* Пустая ячейка — параметр не указал ни один оператор группы. Красным её не
+     красим: у половины колонок пусто — норма (ночное вещание, знак ценза), и
+     сплошная краснота обесценила бы настоящие предупреждения справа. */
+  for (const spec of TASK_PARAMS) {
+    row.push({ v: t.cells[spec.col] || '', s: L.S.BODY });
+  }
+  row.push({ v: t.conflicts, s: t.conflicts ? L.S.WARN : L.S.BODY });
+  row.push({ v: t.notes, s: t.notes ? L.S.WARN : L.S.BODY });
+  row.push({ v: t.assumed, s: t.assumed ? L.S.WARN : L.S.BODY });
+  return row;
+}
+
+const TASK_COLS = [6, 13, 12, 15, 13, 12, 34]
+  .concat(TASK_PARAMS.map(function (p) { return p.w; }))
+  .concat([34, 44, 34]);
+
+function buildWorkbook(result) {
+  const tasks = {
+    name: 'Задание на макеты',
+    cols: TASK_COLS,
+    rows: [TASK_COLUMNS.map(function (c) { return { v: c, s: L.S.HEADER }; })]
+  };
+  for (const t of result.tasks) tasks.rows.push(taskRow(t));
+
+  /* Карточки — раскрывающиеся группы: шапка оператора видна всегда, блоки
+     A–G прячутся под неё. Плоской таблицей на 148 операторов пользоваться
+     невозможно, а свёрнутый список читается как оглавление. */
+  const cards = {
+    name: 'Карточки операторов',
+    cols: [30, 30, 90],
+    outlineSummaryAbove: true,
+    rows: [[
+      { v: 'Оператор / блок', s: L.S.HEADER },
+      { v: 'Параметр', s: L.S.HEADER },
+      { v: 'Значение', s: L.S.HEADER }
+    ]]
+  };
+  for (const c of result.cards) {
+    cards.rows.push({
+      cells: [
+        { v: c.name, s: L.S.GROUP },
+        { v: (c.id ? 'ID ' + c.id + ' · ' : '') + 'поверхностей в АП: ' + c.screensAp, s: L.S.GROUP },
+        { v: 'статус ТТ: ' + c.status + (c.placement ? ' · ' + c.placement : ''), s: L.S.GROUP }
+      ]
+    });
+    for (const b of c.blocks) {
+      b.items.forEach(function (it, i) {
+        const style = (it.assumed || b.assumed) ? L.S.WARN : L.S.BODY;
+        cards.rows.push({
+          outlineLevel: 1,
+          cells: [
+            { v: i === 0 ? b.title : '', s: style },
+            { v: it.param, s: style },
+            { v: it.value, s: style }
+          ]
+        });
+      });
+    }
+  }
+
+  return [tasks, cards];
+}
+
+/* ──────────────────────────────── экспорт ──────────────────────────────── */
+
+root.TTRegCore = {
+  REGISTRY_URL: REGISTRY_URL,
+  SHEET: SHEET,
+  CRITICAL_PARAMS: CRITICAL_PARAMS,
+  TASK_PARAMS: TASK_PARAMS,
+  TASK_COLUMNS: TASK_COLUMNS,
+  readRegistry: readRegistry,
+  readAp: readAp,
+  matchOperator: matchOperator,
+  tokens: tokens,
+  parseMb: parseMb,
+  parseMbps: parseMbps,
+  ttResolutions: ttResolutions,
+  parseSeconds: parseSeconds,
+  mergeParam: mergeParam,
+  buildTasks: buildTasks,
+  buildCards: buildCards,
+  analyze: analyze,
+  buildWorkbook: buildWorkbook
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.TTRegCore;
+
+</script>
+<script>
 (function () {
 'use strict';
-const L = window.OmniLib, T = window.TTCore;
+const L = window.OmniLib, R = window.TTRegCore;
 const $ = function (id) { return document.getElementById(id); };
 
-let apFile = null, dedup = [], misses = new Set(), linkStats = null, activeTab = 'all';
+let apFile = null, registry = null, regSource = '', result = null, activeTab = 'tasks';
 
-$('yaKey').value = T.DATA.YADISK_PUBLIC_KEY || '';
+/* ── реестр ТТ ─────────────────────────────────────────────────────────────
+   Штатный путь — файл из dist/data, он же лежит в репозитории. Абсолютный URL
+   от location.origin обязателен: инструмент внутри панели живёт на blob:, и
+   относительный путь оттуда не резолвится (та же история, что у азимутов). */
+async function loadRegistryFromData() {
+  const url = new URL(R.REGISTRY_URL, location.origin).href;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('реестр не отдался: ' + r.status + ' ' + r.statusText);
+  const buf = new Uint8Array(await r.arrayBuffer());
+  return L.readXlsx(L.bytesSource(buf, 'tt_registry.xlsx'));
+}
 
-/* ── выбор файла ── */
+function regStatus(kind, text) {
+  $('regDot').className = 'dot' + (kind ? ' ' + kind : '');
+  $('regText').innerHTML = text;
+}
+
+function describeRegistry() {
+  const a = registry.about;
+  regStatus('ok', 'Реестр ТТ' + (a.builtAt ? ' от <b>' + escapeHtml(a.builtAt) + '</b>' : '') +
+    ': операторов <b>' + registry.operators.length + '</b>' +
+    ', листов по конструкциям <b>' + countConstructions() + '</b>' +
+    ' · ' + escapeHtml(regSource));
+}
+
+function countConstructions() {
+  let n = 0;
+  registry.constructions.forEach(function (v) { n += v.length; });
+  return n;
+}
+
+async function setRegistry(workbook, source) {
+  registry = R.readRegistry(workbook);
+  regSource = source;
+  describeRegistry();
+  for (const w of registry.warnings) log('Реестр: ' + w, 'warn');
+  refreshGo();
+}
+
+(async function initRegistry() {
+  try {
+    const wb = await loadRegistryFromData();
+    await setRegistry(wb, 'встроенный файл');
+  } catch (e) {
+    regStatus('bad', 'Реестр ТТ не загрузился (' + escapeHtml(e.message) +
+      '). Подложите файл вручную.');
+  }
+})();
+
+$('regPick').addEventListener('click', function () { $('regFile').click(); });
+$('regFile').addEventListener('change', async function () {
+  const f = $('regFile').files && $('regFile').files[0];
+  if (!f) return;
+  try {
+    const wb = await L.readXlsx(L.blobSource(f));
+    await setRegistry(wb, f.name);
+    log('Реестр взят из файла «' + f.name + '»', 'ok');
+  } catch (e) {
+    regStatus('bad', 'Файл «' + escapeHtml(f.name) + '» не подошёл: ' + escapeHtml(e.message));
+    registry = null;
+    refreshGo();
+  }
+});
+
+/* ── выбор АП ── */
 const drop = $('drop'), fileInput = $('file');
 drop.addEventListener('click', function () { fileInput.click(); });
 drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
@@ -3104,8 +4229,10 @@ function setFile(f) {
   drop.classList.add('filled');
   $('dropMain').textContent = f.name;
   $('dropSub').textContent = (f.size / 1024).toFixed(0) + ' КБ — нажмите «Собрать ТТ»';
-  $('go').disabled = false;
+  refreshGo();
 }
+
+function refreshGo() { $('go').disabled = !(apFile && registry); }
 
 /* ── лог и прогресс ── */
 function log(msg, kind) {
@@ -3120,6 +4247,17 @@ function escapeHtml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
+
+/* «1 поверхность», «2 поверхности», «5 поверхностей» — числа тут почти всегда
+   мелкие, и «2 поверхностей» в первой же плашке бросается в глаза. */
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return n + ' ' + many;
+  if (b > 1 && b < 5) return n + ' ' + few;
+  if (b === 1) return n + ' ' + one;
+  return n + ' ' + many;
+}
+function surfaces(n) { return plural(n, 'поверхность', 'поверхности', 'поверхностей'); }
 function progress(on, text) {
   $('prog').classList.toggle('on', !!on);
   if (text !== undefined) $('progText').textContent = text;
@@ -3127,7 +4265,7 @@ function progress(on, text) {
 
 /* ── запуск ── */
 $('go').addEventListener('click', async function () {
-  if (!apFile) return;
+  if (!apFile || !registry) return;
   $('go').disabled = true;
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
@@ -3135,7 +4273,7 @@ $('go').addEventListener('click', async function () {
 
   try {
     const wb = await L.readXlsx(L.blobSource(apFile));
-    const table = T.findApTable(wb);
+    const table = window.TTCore.findApTable(wb);
     if (!table) {
       throw new Error('Не нашёл таблицу АП: нет строки с колонкой «Оператор» и знакомыми ' +
         'заголовками (Формат экрана / Разрешение / Соотношение сторон / GID). Проверьте файл.');
@@ -3143,43 +4281,22 @@ $('go').addEventListener('click', async function () {
     log('Таблица найдена: лист «' + table.sheetName + '», строка шапки ' +
         table.headerRow + ', строк данных ' + table.rows.length, 'ok');
 
-    let linker = null;
-    if ($('useYa').checked && $('yaKey').value.trim()) {
-      progress(true, 'Получаю ссылки с Яндекс.Диска…');
-      linker = new T.YandexDiskLinker($('yaKey').value.trim());
-      try {
-        await linker.fetchAll(function (n, total, path) {
-          progress(true, 'Яндекс.Диск: ' + n + (total ? ' из ' + total : '') + ' файлов…');
-        });
-        const pub = linker.files.length - linker.unpublished.length;
-        log('Диск: файлов ' + linker.files.length + ', с постоянной ссылкой ' + pub +
-            (linker.dirsSeen ? ', вложенных папок ' + linker.dirsSeen : ''), 'ok');
-        if (linker.unpublished.length) {
-          log('Не опубликованы по отдельности (' + linker.unpublished.length +
-              ') — ссылок на них не будет:', 'warn');
-          linker.unpublished.slice().sort().forEach(function (n) { log('   • ' + n, 'warn'); });
-        }
-      } catch (e) {
-        log('Ссылки не получены: ' + e.message, 'err');
-        log('Колонка «Ссылка на ТТ» останется пустой. Проверьте ссылку на папку и доступ в интернет.', 'warn');
-        linker = null;
-      }
-    } else {
-      log('Ссылки с Диска не запрашиваем — колонка «Ссылка на ТТ» будет пустой.', 'warn');
+    progress(true, 'Сводлю требования…');
+    result = R.analyze(registry, table, { useDefaults: $('useDef').checked });
+    const s = result.stats;
+
+    if (!result.ap.hasDurationColumn) {
+      log('В АП нет колонки «Длительность, сек» — длительности взяты из справочника связок ' +
+          '«оператор + формат» (' + result.ap.durationFallback.length + ' пар)', 'warn');
     }
-
-    progress(true, 'Обрабатываю строки…');
-    const res = T.processAp(table, linker);
-    misses = res.durationMisses;
-    dedup = T.deduplicate(res.results);
-    log('Строк: ' + res.results.length + ' → после дедупликации ' + dedup.length +
-        ' (удалено дублей: ' + (res.results.length - dedup.length) + ')', 'ok');
-
-    const withDur = dedup.filter(function (r) { return r['Длительность (сек)'] !== ''; }).length;
-    const withLink = dedup.filter(function (r) { return r['Ссылка на ТТ']; }).length;
-    linkStats = { withDur: withDur, withLink: withLink, usedLinker: !!linker };
-    log('Длительность проставлена в ' + withDur + ' из ' + dedup.length + ' строк');
-    if (linker) log('Ссылки найдены для ' + withLink + ' из ' + dedup.length + ' строк');
+    log('Поверхностей: ' + s.apRows + ' → уникальных макетов: ' + s.tasks, 'ok');
+    log('Операторов в АП: ' + s.operators +
+        (s.noTt ? ', из них без пригодных ТТ: ' + s.noTt + ' (' + surfaces(s.noTtScreens) + ')' : ''));
+    if (s.conflicts) log('Макетов с конфликтом требований: ' + s.conflicts, 'warn');
+    if (result.unknownOperators.length) {
+      log('Нет в реестре (' + result.unknownOperators.length + '):', 'err');
+      result.unknownOperators.forEach(function (n) { log('   • ' + n, 'err'); });
+    }
 
     progress(false);
     render();
@@ -3189,80 +4306,142 @@ $('go').addEventListener('click', async function () {
     log('Ошибка: ' + e.message, 'err');
     console.error(e);
   } finally {
-    $('go').disabled = false;
+    refreshGo();
   }
 });
 
 $('reset').addEventListener('click', function () {
-  apFile = null; dedup = []; misses = new Set(); linkStats = null;
+  apFile = null; result = null; activeTab = 'tasks';
   drop.classList.remove('filled');
   $('dropMain').textContent = 'Выберите файл .xlsx или перетащите сюда';
   $('dropSub').textContent = 'лист и строка с шапкой определяются автоматически';
-  $('go').disabled = true;
   $('results').classList.remove('on');
   $('log').innerHTML = ''; $('log').classList.remove('on');
   $('reset').style.display = 'none';
   fileInput.value = '';
+  refreshGo();
 });
 
-/* ── отрисовка результата ── */
+/* ── отрисовка ── */
 function render() {
-  const noLink = dedup.filter(function (r) { return !r['Ссылка на ТТ']; });
-  const noDur = dedup.filter(function (r) { return r['Длительность (сек)'] === ''; });
+  const s = result.stats;
+  const withConflict = result.tasks.filter(function (t) { return t.conflicts; });
+  const withNotes = result.tasks.filter(function (t) { return t.notes; });
 
   $('tiles').innerHTML =
-    tile(dedup.length, 'уникальных строк', 'good') +
-    tile(linkStats.withDur + ' / ' + dedup.length, 'с длительностью', noDur.length ? 'warn' : '') +
-    (linkStats.usedLinker
-      ? tile(linkStats.withLink + ' / ' + dedup.length, 'со ссылкой на ТТ', noLink.length ? 'warn' : '')
-      : '') +
-    (misses.size ? tile(misses.size, 'пар без длительности', 'bad') : '');
+    tile(s.tasks, 'макетов', 'good') +
+    tile(s.apRows, 'поверхностей') +
+    tile(s.operators, 'операторов') +
+    (s.noTt ? tile(s.noTt, 'без пригодных ТТ', 'bad') : '') +
+    (s.conflicts ? tile(s.conflicts, 'с конфликтом', 'bad') : '') +
+    (s.assumed ? tile(s.assumed, 'с допущениями', 'warn') : '');
 
   let notes = '';
-  if (misses.size) {
-    notes += '<div class="note warn"><b>Не нашлась длительность для ' + misses.size +
-      ' пар (оператор | формат):</b><br>' +
-      [...misses].sort().map(escapeHtml).join('<br>') +
-      '<br><br>Проверьте, что оператор и формат в АП записаны так же, как в справочнике ' +
-      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.).</div>';
+  if (s.noTt) {
+    const list = result.cards.filter(function (c) {
+      return !c.id || /ТТ нет|не заполнять|только юр/i.test(c.status);
+    });
+    notes += '<div class="note warn"><b>Требований оператора нет или они неполные — ' +
+      list.length + ':</b><br>' + list.map(function (c) {
+        return escapeHtml(c.name) + ' — ' + escapeHtml(c.status) +
+          ' (' + surfaces(c.screensAp) + ' в АП)';
+      }).join('<br>') +
+      ($('useDef').checked
+        ? '<br><br>В задании по ним стоит отраслевой дефолт, помеченный как допущение. ' +
+          escapeHtml(registry.defaultsCaveat)
+        : '<br><br>Подстановка дефолта выключена — колонки по этим операторам пустые.') +
+      '</div>';
   }
-  if (linkStats.usedLinker && noLink.length) {
-    notes += '<div class="note info">Без ссылки — <b>' + noLink.length +
-      '</b> комбинаций. Если оператор есть на Диске, но ссылка не подтянулась — сверьте ' +
-      'написание оператора и разрешение в имени файла.</div>';
+  if (withConflict.length) {
+    notes += '<div class="note err"><b>Требования операторов расходятся — ' +
+      plural(withConflict.length, 'макет', 'макета', 'макетов') + '.</b> Одним файлом ' +
+      'такую связку не закрыть: смотрите колонку «Конфликты», возможно, макетов нужно два.</div>';
   }
-  if (!misses.size && (!linkStats.usedLinker || !noLink.length)) {
-    notes += '<div class="note ok">Всё закрыто: длительности и ссылки найдены для всех строк.</div>';
+  if (result.unknownOperators.length) {
+    notes += '<div class="note err"><b>Нет в реестре — ' + result.unknownOperators.length +
+      ':</b> ' + result.unknownOperators.map(escapeHtml).join(', ') +
+      '. Требования по ним не подставлены: сверьте написание или добавьте оператора в реестр.</div>';
+  }
+  if (!s.noTt && !withConflict.length && !result.unknownOperators.length) {
+    notes += '<div class="note ok">Все операторы АП нашлись в реестре, требования не ' +
+      'противоречат друг другу.</div>';
   }
   $('notes').innerHTML = notes;
 
   $('tabs').innerHTML =
-    tab('all', 'Все', dedup.length) +
-    (noLink.length ? tab('nolink', 'Без ссылки', noLink.length) : '') +
-    (noDur.length ? tab('nodur', 'Без длительности', noDur.length) : '');
+    tab('tasks', 'Задание на макеты', result.tasks.length) +
+    tab('cards', 'Карточки операторов', result.cards.length) +
+    (withConflict.length ? tab('conflict', 'Конфликты', withConflict.length) : '') +
+    (withNotes.length ? tab('notes', 'Замечания', withNotes.length) : '');
   [...$('tabs').children].forEach(function (b) {
     b.addEventListener('click', function () { activeTab = b.dataset.k; render(); });
   });
 
-  $('thead').innerHTML = T.COLUMNS.map(function (c) { return '<th>' + c + '</th>'; }).join('');
-
-  const rows = activeTab === 'nolink' ? noLink : activeTab === 'nodur' ? noDur : dedup;
-  $('tbody').innerHTML = rows.map(function (r) {
-    const bad = !r['Ссылка на ТТ'] || r['Длительность (сек)'] === '';
-    return '<tr class="' + (bad ? 'miss' : 'ok') + '">' +
-      '<td>' + escapeHtml(r['Оператор']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Формат экрана']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Разрешение']) + '</td>' +
-      '<td class="nowrap">' + escapeHtml(r['Соотношение сторон']) + '</td>' +
-      '<td class="num">' + (r['Длительность (сек)'] === ''
-        ? '<span class="muted">—</span>' : r['Длительность (сек)'] + ' с') + '</td>' +
-      '<td>' + (r['Ссылка на ТТ']
-        ? '<a href="' + escapeHtml(r['Ссылка на ТТ']) + '" target="_blank" rel="noopener">' +
-          escapeHtml(T.DATA.LINK_DISPLAY_TEXT || 'Открыть') + '</a>'
-        : '<span class="muted">нет</span>') + '</td></tr>';
-  }).join('');
+  if (activeTab === 'cards') {
+    $('viewTable').style.display = 'none';
+    $('viewCards').style.display = '';
+    renderCards();
+  } else {
+    $('viewCards').style.display = 'none';
+    $('viewTable').style.display = '';
+    renderTasks(activeTab === 'conflict' ? withConflict : activeTab === 'notes' ? withNotes : result.tasks);
+  }
 
   $('results').classList.add('on');
+}
+
+/* В таблице показываем не все 24 колонки выгрузки: в браузере важно увидеть
+   макет и производственные параметры, а проза про дисклеймеры читается в
+   карточках. В .xlsx уходит всё. */
+const SHOWN = ['№', 'Разрешение', 'Соотношение', 'Длительность, сек', 'Экранов в АП',
+  'Операторы', 'Формат видео', 'Кодек', 'FPS', 'Битрейт, Мбит/с ≤', 'Вес, МБ ≤',
+  'Хронометраж, сек', 'Статика', '⚠ Конфликты', '⚠ Замечания', 'Допущения'];
+
+function taskCell(t, col) {
+  if (col === '№') return String(t.no);
+  if (col === 'Разрешение') return t.res;
+  if (col === 'Соотношение') return t.aspect;
+  if (col === 'Длительность, сек') return t.durNum === null ? '—' : String(t.durNum);
+  if (col === 'Экранов в АП') return String(t.screens);
+  if (col === 'Операторы') return t.operators;
+  if (col === '⚠ Конфликты') return t.conflicts;
+  if (col === '⚠ Замечания') return t.notes;
+  if (col === 'Допущения') return t.assumed;
+  return t.cells[col] || '';
+}
+
+function renderTasks(rows) {
+  $('thead').innerHTML = SHOWN.map(function (c) { return '<th>' + escapeHtml(c) + '</th>'; }).join('');
+  $('tbody').innerHTML = rows.map(function (t) {
+    const bad = !!t.conflicts;
+    return '<tr class="' + (bad ? 'miss' : 'ok') + '">' + SHOWN.map(function (c) {
+      const v = taskCell(t, c);
+      const warn = (c === '⚠ Конфликты' || c === '⚠ Замечания') && v;
+      const nowrap = c === '№' || c === 'Разрешение' || c === 'Соотношение' ||
+        c === 'Длительность, сек' || c === 'FPS';
+      const cls = [nowrap ? 'nowrap' : '', warn ? 'warn-cell' : '', v ? '' : 'muted']
+        .filter(Boolean).join(' ');
+      return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
+        (v ? escapeHtml(v) : '—') + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+}
+
+function renderCards() {
+  $('viewCards').innerHTML = result.cards.map(function (c, i) {
+    const blocks = c.blocks.map(function (b) {
+      return '<div class="card-blk' + (b.assumed ? ' assumed' : '') + '">' +
+        '<div class="bt">' + escapeHtml(b.title) + '</div><dl>' +
+        b.items.map(function (it) {
+          return '<dt>' + escapeHtml(it.param) + '</dt><dd>' + escapeHtml(it.value) + '</dd>';
+        }).join('') + '</dl></div>';
+    }).join('');
+    return '<details class="card-op"' + (i === 0 ? ' open' : '') + '><summary>' +
+      '<span class="nm">' + escapeHtml(c.name) + '</span>' +
+      '<span class="meta">' + (c.id ? 'ID ' + escapeHtml(c.id) + ' · ' : '') +
+      surfaces(c.screensAp) + ' в АП · статус ТТ: ' + escapeHtml(c.status) + '</span>' +
+      '</summary>' + blocks + '</details>';
+  }).join('');
 }
 
 function tile(v, k, cls) {
@@ -3275,30 +4454,31 @@ function tab(k, label, n) {
 
 /* ── выгрузка ── */
 $('dl').addEventListener('click', function () {
-  if (!dedup.length) return;
-  const blob = L.writeXlsx(T.buildReport(dedup));
-  const base = apFile ? apFile.name.replace(/\.[^.]+$/, '') : 'ТТ';
-  L.download(blob, base + ' — ТТ.xlsx');
+  if (!result) return;
+  const blob = L.writeXlsx(R.buildWorkbook(result));
+  const base = apFile ? apFile.name.replace(/\.[^.]+$/, '') : 'АП';
+  const stamp = registry.about.builtAt ? ' (реестр ' + registry.about.builtAt + ')' : '';
+  L.download(blob, base + ' — задание на макеты' + stamp + '.xlsx');
 });
 
 $('copy').addEventListener('click', async function () {
-  const lines = [T.COLUMNS.join('\t')];
-  for (const r of dedup) {
-    lines.push(T.COLUMNS.map(function (c) { return String(r[c] === undefined ? '' : r[c]); }).join('\t'));
+  if (!result) return;
+  const cols = R.TASK_COLUMNS;
+  const lines = [cols.join('\t')];
+  for (const t of result.tasks) {
+    lines.push(cols.map(function (c) { return String(taskCell(t, c)).replace(/\s+/g, ' '); }).join('\t'));
   }
   const text = lines.join('\n');
   try {
     await navigator.clipboard.writeText(text);
-    $('copy').textContent = 'Скопировано ✓';
   } catch (e) {
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); ta.remove();
-    $('copy').textContent = 'Скопировано ✓';
   }
-  setTimeout(function () { $('copy').textContent = 'Копировать таблицу'; }, 1800);
+  $('copy').textContent = 'Скопировано ✓';
+  setTimeout(function () { $('copy').textContent = 'Копировать задание'; }, 1800);
 });
-
 
 /* Плашка про демо-данные. Через log() нельзя: обработчик запуска очищает лог,
    и пояснение исчезало ровно в тот момент, когда становилось нужным. */
@@ -3311,33 +4491,41 @@ function demoNote(html) {
 }
 
 /* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
-   Демо-АП собрана из настоящих связок справочника, поэтому длительности
-   получаются такие же, как на рабочем файле. Две строки тут намеренные:
-   повтор «3 Арт» показывает склейку дублей, а «РА Ромашка» — как выглядит
-   связка, которой в справочнике нет. */
+   Демо-АП собрана из настоящих операторов реестра, поэтому и требования, и
+   замечания получаются настоящие. Строки подобраны так, чтобы разом показать
+   всё, за чем сюда приходят: склейку операторов в один макет, конфликт
+   требований, оператора без ТТ и оператора, которого в реестре нет. */
 if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
-  // Разрешения взяты те, под которые на Диске действительно лежат ТТ, —
-  // иначе в демо почти вся колонка со ссылками была бы пустой и создавала
-  // ложное впечатление, что ссылки не находятся вообще никогда.
   const rows = [
-    ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон', 'GID'],
-    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100001'],
-    ['Russ Outdoor', 'CITY_FORMAT', '1440x720', '2:1', 'GID-100002'],
-    ['Russ Outdoor', 'BILLBOARD', '1080x1920', '9:16', 'GID-100003'],
-    ['MAER (Outdoor)', 'MEDIAFACADE', '720x360', '2:1', 'GID-100004'],
-    ['MAER (Outdoor)', 'SUPERSITE', '1152x864', '4:3', 'GID-100005'],
-    ['LBL', 'BILLBOARD', '1920x1080', '16:9', 'GID-100006'],
-    ['2 Этаж', 'SUPERSITE', '960x1344', '5:7', 'GID-100007'],
-    ['РИМ', 'BILLBOARD', '896x320', '14:5', 'GID-100008'],
-    ['РА Ромашка', 'BILLBOARD', '1920x1080', '16:9', 'GID-100009']
+    ['GID', 'Город', 'Оператор', 'Формат экрана', 'Длительность, сек', 'Вид. разрешение', 'Соотношение сторон'],
+    ['D-1', 'Санкт-Петербург', 'РИМ', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-2', 'Казань', 'РИМ', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-3', 'Екатеринбург', 'Хэт-Трик', 'BILLBOARD', 5, '720×360', '2:1'],
+    ['D-4', 'Нижний Новгород', 'Перспектива', 'BILLBOARD', 5, '720×360', '2:1'],
+    /* Sunlight Indoor и Трансмедиа стоят на одном разрешении и одном слоте
+       намеренно: у первого в ТТ «не ниже 30» fps, у второго ровно 25 — одним
+       файлом это не закрыть, и в колонке «Конфликты» видно, почему. */
+    ['D-5', 'Москва', 'Sunlight Indoor', 'INDOOR_SCREEN', 10, '1920×1080', '16:9'],
+    ['D-6', 'Балашиха', 'Трансмедиа', 'INDOOR_SCREEN', 10, '1920×1080', '16:9'],
+    ['D-7', 'Москва', 'Реклама центр OUTDOOR', 'CITY_BOARD', 5, '896×672', '4:3'],
+    ['D-8', 'Москва', 'Russ Outdoor', 'CITY_FORMAT', 5, '1080×1920', '9:16'],
+    ['D-9', 'Москва', 'Russ Outdoor', 'CITY_FORMAT', 5, '1080×1920', '9:16'],
+    ['D-10', 'Нижний Новгород', 'РА МОСТ', 'INDOOR_SCREEN', 10, '1080×1920', '9:16'],
+    ['D-11', 'Москва', 'РА Ромашка', 'BILLBOARD', 5, '1920×1080', '16:9']
   ];
-  const blob = L.writeXlsx([{ name: 'Адресная программа', cols: [26, 18, 14, 18, 14], rows: rows }]);
+  const blob = L.writeXlsx([{ name: 'АП', cols: [10, 22, 26, 18, 16, 16, 16], rows: rows }]);
   setFile(new File([blob], 'Демо — адресная программа.xlsx', { type: blob.type }));
-  demoNote('<b>Демо-данные.</b> Адресная программа на ' + (rows.length - 1) +
-    ' строк собрана здесь же из настоящих связок справочника. Строка «РА Ромашка» — ' +
-    'намеренная: такой связки в справочнике нет, посмотрите, как это выглядит в результате. ' +
-    'Свой файл можно положить сверху.');
-  $('go').click();
+  demoNote('<b>Демо-данные.</b> Адресная программа на ' + surfaces(rows.length - 1) +
+    ' собрана здесь же из настоящих операторов реестра. В ней намеренно есть ' +
+    'Sunlight Indoor с частотой «не ниже 30» на одном макете с Трансмедиа, у которой ' +
+    'ровно 25 (конфликт), Russ Outdoor и РА МОСТ без ТТ (допущения) и «РА Ромашка», ' +
+    'которой в реестре нет. Свой файл можно положить сверху.');
+  /* Реестр грузится асинхронно — ждём его, иначе кнопка ещё заблокирована. */
+  (function waitRegistry(tries) {
+    if (registry) { $('go').click(); return; }
+    if (tries <= 0) { log('Демо: реестр так и не загрузился', 'err'); return; }
+    setTimeout(function () { waitRegistry(tries - 1); }, 150);
+  })(60);
 }
 
 })();
