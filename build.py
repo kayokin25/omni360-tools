@@ -66,14 +66,6 @@ def read(p):
         return f.read()
 
 
-def write(p, text):
-    """newline='\\n' обязателен: на Windows open(..., 'w') переводит \\n в \\r\\n,
-    и сборка перезаписывает все файлы dist/ переводами строк. В git это выглядит
-    как «изменились все инструменты», хотя менялся один."""
-    with open(p, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(text)
-
-
 def build_tool(filename):
     """Инлайнит /*__INJECT:file__*/ содержимым lib/file."""
     src = read(os.path.join(TOOLS, filename))
@@ -291,12 +283,14 @@ def main():
     for res_id, fn in NEW_TOOLS:
         html, used = build_tool(fn)
         web[res_id] = html
-        write(os.path.join(DIST, 'tools', fn), html)
+        with open(os.path.join(DIST, 'tools', fn), 'w', encoding='utf-8') as f:
+            f.write(html)
         print(f'  {fn:16} {len(html):>7} символов  ← {", ".join(used)}')
 
     index_html, n_man, n_ext = make_bundle(web)
     index_path = os.path.join(DIST, 'index.html')
-    write(index_path, index_html)
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(index_html)
     print(f'  панель: manifest {n_man} ресурсов, ext_resources {n_ext}')
 
     # ── ключа не должно быть ни в одном артефакте: репозиторий публичный ──
