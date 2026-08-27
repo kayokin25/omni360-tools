@@ -1743,22 +1743,19 @@ async function patchFile(file, options) {
     return '<c' + newAttrs + (cell.selfClosing ? '/>' : '>' + cell.body + '</c>');
   }
 
-  /* Шапка отчёта над таблицей («Рекламодатель», «Период размещения», «Бюджет»…)
-     живёт в тех же A/B, но к таблице отношения не имеет: столбец «№» ей не
-     нужен, а от сдвига вправо она просто уезжала на пустую колонку. Строки
-     ВЫШЕ строки заголовков оставляем на месте — двигаем только таблицу. */
+  /* Лист сдвигается вправо целиком, вместе с шапкой отчёта над таблицей
+     («Рекламодатель», «Период размещения», «Бюджет»…): подписи там длинные,
+     а столбец A теперь узкий, под «№», — прижатые к левому краю, они бы
+     обрезались о соседнее значение. Пустая колонка слева читается лучше. */
   function mapRow(r) {
     return (r >= dataStart && r <= dataEnd) ? newRowOf.get(r) : r;
-  }
-  function mapCol(col0, rowNum) {
-    return rowNum < headerRow ? col0 : remapColumn(col0, dropCol0);
   }
 
   for (const row of rows) {
     const newRow = mapRow(row.num);
     if (newRow === undefined) continue; // строка вне диапазона данных без записи (не бывает, но на всякий случай)
     for (const cell of row.cells) {
-      const newCol0 = mapCol(cell.col, row.num);
+      const newCol0 = remapColumn(cell.col, dropCol0);
       if (newCol0 === null) continue; // столбец «Комиссия платформы» — выбрасываем
       place(newRow, newCol0, rebuildCell(cell, newCol0, newRow));
     }
@@ -1848,8 +1845,8 @@ async function patchFile(file, options) {
       const nr1 = mapRow(r1), nr2 = mapRow(r2);
       if (nr1 === undefined || nr2 === undefined) continue;
       // край, стоявший ровно на удалённом столбце, поджимаем внутрь мёрджа
-      const n1 = (r1 >= headerRow && c1 === dropCol0) ? remapColumn(c1 + 1, dropCol0) : mapCol(c1, r1);
-      const n2 = (r2 >= headerRow && c2 === dropCol0) ? remapColumn(c2 - 1, dropCol0) : mapCol(c2, r2);
+      const n1 = (c1 === dropCol0) ? remapColumn(c1 + 1, dropCol0) : remapColumn(c1, dropCol0);
+      const n2 = (c2 === dropCol0) ? remapColumn(c2 - 1, dropCol0) : remapColumn(c2, dropCol0);
       if (n1 === null || n2 === null || n1 > n2 || nr1 > nr2) continue;
       refs.push(L.indexToCol(n1) + nr1 + ':' + L.indexToCol(n2) + nr2);
     }
@@ -1884,7 +1881,7 @@ async function patchFile(file, options) {
       if (!refM) continue;
       const oldCol0 = L.colToIndex(refM[1]), oldRow = parseInt(refM[2], 10);
       const newRow = mapRow(oldRow);
-      const newCol0 = mapCol(oldCol0, oldRow);
+      const newCol0 = remapColumn(oldCol0, dropCol0);
       if (newCol0 === null || newRow === undefined) continue; // ссылка была в удалённом столбце/строке
       const newRef = L.indexToCol(newCol0) + newRow;
       newLinks.push('<hyperlink' + a.replace(/\bref="[^"]*"/, 'ref="' + newRef + '"') + '/>');
