@@ -349,8 +349,9 @@ root.OmniTheme = {
 
   <h1>Технические требования по АП</h1>
   <p class="subtitle">
-    Загрузите адресную программу — инструмент определит длительность ролика для каждой связки
-    «оператор + формат», подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
+    Загрузите адресную программу — инструмент возьмёт длительность ролика из её колонки
+    «Длительность», а если такой колонки нет, определит по связке «оператор + формат»,
+    подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
   </p>
 
   <div class="section-label">Адресная программа</div>
@@ -2799,6 +2800,33 @@ function lookupDuration(operator, screenFormat) {
   return v === undefined ? null : v;
 }
 
+/* Колонки с длительностью в самой АП: «Длительность», «Длительность, с»,
+   «Длительность ролика» — что найдётся. АП главнее справочника: там цифра
+   от оператора на эту закупку, а справочник — наша память о том, что он
+   обычно даёт. */
+function durationCols(table) {
+  const cols = [];
+  for (const name in table.colOf) if (/длительн/i.test(name)) cols.push(table.colOf[name]);
+  return cols;
+}
+
+/* «5», «5 с», «5, 10», «10/15» → [5, 10] (по возрастанию, без повторов).
+   Запятая тут всегда разделитель, а не дробная часть: секунды целые. */
+function parseDurations(v) {
+  const out = [];
+  const found = String(v === null || v === undefined ? '' : v).match(/\d+(?:\.\d+)?/g) || [];
+  for (const s of found) {
+    const n = Number(s);
+    if (n > 0 && out.indexOf(n) < 0) out.push(n);
+  }
+  return out.sort(function (a, b) { return a - b; });
+}
+
+/* Одна длительность остаётся числом (в xlsx — числом), несколько — «5, 10». */
+function joinDurations(list) {
+  return list.length === 1 ? list[0] : list.join(', ');
+}
+
 /* Имя оператора из АП → нормализованный токен имени файла на Диске. */
 function operatorToken(apOperator) {
   const n = norm(apOperator);
@@ -2987,6 +3015,7 @@ function getField(table, row, names) {
 function processAp(table, linker) {
   const results = [];
   const durationMisses = new Set();
+  const durCols = durationCols(table);
 
   for (const row of table.rows) {
     const operator = getField(table, row, ['Оператор']);
@@ -2994,9 +3023,21 @@ function processAp(table, linker) {
     const resolution = getField(table, row, ['Разрешение', 'Вид. разрешение']);
     const aspect = getField(table, row, ['Соотношение сторон']);
 
-    const dur = lookupDuration(operator, screenFormat);
-    if (dur === null) {
-      durationMisses.add(L.cellStr(operator) + ' | ' + L.cellStr(screenFormat));
+    const apDurs = [];
+    for (const c of durCols) {
+      for (const n of parseDurations(row[c])) if (apDurs.indexOf(n) < 0) apDurs.push(n);
+    }
+    apDurs.sort(function (a, b) { return a - b; });
+
+    let dur;
+    if (apDurs.length) {
+      dur = joinDurations(apDurs);
+    } else {
+      dur = lookupDuration(operator, screenFormat);
+      if (dur === null) {
+        durationMisses.add(L.cellStr(operator) + ' | ' + L.cellStr(screenFormat));
+        dur = '';
+      }
     }
 
     results.push({
@@ -3004,25 +3045,33 @@ function processAp(table, linker) {
       'Формат экрана': L.cellStr(screenFormat),
       'Разрешение': L.cellStr(resolution),
       'Соотношение сторон': L.cellStr(aspect),
-      'Длительность (сек)': dur === null ? '' : dur,
-      'Ссылка на ТТ': linker ? linker.findLink(operator, resolution, aspect) : ''
+      'Длительность (сек)': dur,
+      'Ссылка на ТТ': linker ? linker.findLink(operator, resolution, aspect) : '',
+      _apDur: apDurs.length > 0
     });
   }
 
   return { results: results, durationMisses: durationMisses };
 }
 
-/* Дедупликация по (оператор, разрешение, длительность) — как в tt.py. */
+/* Дедупликация по (оператор, разрешение, длительность) — как в tt.py.
+   Длительности из АП — исключение: на одну связку их может быть несколько
+   (и 5, и 10 секунд у того же оператора), и нужны все — склеиваем через запятую. */
 function deduplicate(results) {
-  const seen = new Set();
-  const out = [];
+  const byKey = new Map();
   for (const r of results) {
     const key = String(r['Оператор']).trim() + KEY_SEP +
                 String(r['Разрешение']).trim() + KEY_SEP +
-                String(r['Длительность (сек)']).trim();
-    if (!seen.has(key)) { seen.add(key); out.push(r); }
+                (r._apDur ? '' : String(r['Длительность (сек)']).trim());
+    const prev = byKey.get(key);
+    if (!prev) { byKey.set(key, Object.assign({}, r)); continue; }
+    if (r._apDur) {
+      prev['Длительность (сек)'] = joinDurations(parseDurations(
+        String(prev['Длительность (сек)']) + ',' +
+        String(r['Длительность (сек)'])));
+    }
   }
-  return out;
+  return Array.from(byKey.values());
 }
 
 const COLUMNS = ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон',
@@ -3055,6 +3104,8 @@ function buildReport(results) {
 root.TTCore = {
   normFormat: normFormat,
   lookupDuration: lookupDuration,
+  parseDurations: parseDurations,
+  joinDurations: joinDurations,
   operatorToken: operatorToken,
   parseFilename: parseFilename,
   YandexDiskLinker: YandexDiskLinker,
@@ -3175,6 +3226,12 @@ $('go').addEventListener('click', async function () {
     log('Строк: ' + res.results.length + ' → после дедупликации ' + dedup.length +
         ' (удалено дублей: ' + (res.results.length - dedup.length) + ')', 'ok');
 
+    const fromAp = res.results.filter(function (r) { return r._apDur; }).length;
+    if (fromAp) {
+      log('Длительность взята из АП для ' + fromAp + ' строк' +
+          (fromAp < res.results.length ? ', остальные — из справочника' : ''), 'ok');
+    }
+
     const withDur = dedup.filter(function (r) { return r['Длительность (сек)'] !== ''; }).length;
     const withLink = dedup.filter(function (r) { return r['Ссылка на ТТ']; }).length;
     linkStats = { withDur: withDur, withLink: withLink, usedLinker: !!linker };
@@ -3224,7 +3281,8 @@ function render() {
       ' пар (оператор | формат):</b><br>' +
       [...misses].sort().map(escapeHtml).join('<br>') +
       '<br><br>Проверьте, что оператор и формат в АП записаны так же, как в справочнике ' +
-      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.).</div>';
+      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.). Либо добавьте в АП колонку ' +
+      '«Длительность» — она важнее справочника.</div>';
   }
   if (linkStats.usedLinker && noLink.length) {
     notes += '<div class="note info">Без ссылки — <b>' + noLink.length +

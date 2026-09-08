@@ -2934,6 +2934,33 @@ function lookupDuration(operator, screenFormat) {
   return v === undefined ? null : v;
 }
 
+/* Колонки с длительностью в самой АП: «Длительность», «Длительность, с»,
+   «Длительность ролика» — что найдётся. АП главнее справочника: там цифра
+   от оператора на эту закупку, а справочник — наша память о том, что он
+   обычно даёт. */
+function durationCols(table) {
+  const cols = [];
+  for (const name in table.colOf) if (/длительн/i.test(name)) cols.push(table.colOf[name]);
+  return cols;
+}
+
+/* «5», «5 с», «5, 10», «10/15» → [5, 10] (по возрастанию, без повторов).
+   Запятая тут всегда разделитель, а не дробная часть: секунды целые. */
+function parseDurations(v) {
+  const out = [];
+  const found = String(v === null || v === undefined ? '' : v).match(/\d+(?:\.\d+)?/g) || [];
+  for (const s of found) {
+    const n = Number(s);
+    if (n > 0 && out.indexOf(n) < 0) out.push(n);
+  }
+  return out.sort(function (a, b) { return a - b; });
+}
+
+/* Одна длительность остаётся числом (в xlsx — числом), несколько — «5, 10». */
+function joinDurations(list) {
+  return list.length === 1 ? list[0] : list.join(', ');
+}
+
 /* Имя оператора из АП → нормализованный токен имени файла на Диске. */
 function operatorToken(apOperator) {
   const n = norm(apOperator);
@@ -3122,6 +3149,7 @@ function getField(table, row, names) {
 function processAp(table, linker) {
   const results = [];
   const durationMisses = new Set();
+  const durCols = durationCols(table);
 
   for (const row of table.rows) {
     const operator = getField(table, row, ['Оператор']);
@@ -3129,9 +3157,21 @@ function processAp(table, linker) {
     const resolution = getField(table, row, ['Разрешение', 'Вид. разрешение']);
     const aspect = getField(table, row, ['Соотношение сторон']);
 
-    const dur = lookupDuration(operator, screenFormat);
-    if (dur === null) {
-      durationMisses.add(L.cellStr(operator) + ' | ' + L.cellStr(screenFormat));
+    const apDurs = [];
+    for (const c of durCols) {
+      for (const n of parseDurations(row[c])) if (apDurs.indexOf(n) < 0) apDurs.push(n);
+    }
+    apDurs.sort(function (a, b) { return a - b; });
+
+    let dur;
+    if (apDurs.length) {
+      dur = joinDurations(apDurs);
+    } else {
+      dur = lookupDuration(operator, screenFormat);
+      if (dur === null) {
+        durationMisses.add(L.cellStr(operator) + ' | ' + L.cellStr(screenFormat));
+        dur = '';
+      }
     }
 
     results.push({
@@ -3139,25 +3179,33 @@ function processAp(table, linker) {
       'Формат экрана': L.cellStr(screenFormat),
       'Разрешение': L.cellStr(resolution),
       'Соотношение сторон': L.cellStr(aspect),
-      'Длительность (сек)': dur === null ? '' : dur,
-      'Ссылка на ТТ': linker ? linker.findLink(operator, resolution, aspect) : ''
+      'Длительность (сек)': dur,
+      'Ссылка на ТТ': linker ? linker.findLink(operator, resolution, aspect) : '',
+      _apDur: apDurs.length > 0
     });
   }
 
   return { results: results, durationMisses: durationMisses };
 }
 
-/* Дедупликация по (оператор, разрешение, длительность) — как в tt.py. */
+/* Дедупликация по (оператор, разрешение, длительность) — как в tt.py.
+   Длительности из АП — исключение: на одну связку их может быть несколько
+   (и 5, и 10 секунд у того же оператора), и нужны все — склеиваем через запятую. */
 function deduplicate(results) {
-  const seen = new Set();
-  const out = [];
+  const byKey = new Map();
   for (const r of results) {
     const key = String(r['Оператор']).trim() + KEY_SEP +
                 String(r['Разрешение']).trim() + KEY_SEP +
-                String(r['Длительность (сек)']).trim();
-    if (!seen.has(key)) { seen.add(key); out.push(r); }
+                (r._apDur ? '' : String(r['Длительность (сек)']).trim());
+    const prev = byKey.get(key);
+    if (!prev) { byKey.set(key, Object.assign({}, r)); continue; }
+    if (r._apDur) {
+      prev['Длительность (сек)'] = joinDurations(parseDurations(
+        String(prev['Длительность (сек)']) + ',' +
+        String(r['Длительность (сек)'])));
+    }
   }
-  return out;
+  return Array.from(byKey.values());
 }
 
 const COLUMNS = ['Оператор', 'Формат экрана', 'Разрешение', 'Соотношение сторон',
@@ -3190,6 +3238,8 @@ function buildReport(results) {
 root.TTCore = {
   normFormat: normFormat,
   lookupDuration: lookupDuration,
+  parseDurations: parseDurations,
+  joinDurations: joinDurations,
   operatorToken: operatorToken,
   parseFilename: parseFilename,
   YandexDiskLinker: YandexDiskLinker,
@@ -4539,7 +4589,7 @@ techreq: {
     { kind: 'intro',
       h: 'Длительности и ТТ по адресной программе — за один проход',
       lead: [
-        'Инструмент читает адресную программу и для каждой связки <b>оператор + формат экрана</b> сам подставляет длительность ролика. Лист и строку с шапкой находит сам — раскладывать файл не нужно.',
+        'Инструмент читает адресную программу и подставляет длительность ролика: сначала берёт её из колонки <b>«Длительность»</b> самой АП, а если такой колонки нет — определяет по связке <b>оператор + формат экрана</b>. Лист и строку с шапкой находит сам — раскладывать файл не нужно.',
         'Рядом подтягивается ссылка на технические требования с Яндекс.Диска, а одинаковые связки склеиваются в одну строку.'
       ],
       gain: [
@@ -4551,7 +4601,7 @@ techreq: {
     { kind: 'steps',
       h: 'Четыре шага',
       items: [
-        { t: 'Положите адресную программу', d: 'Файл .xlsx — кликом или перетаскиванием. Нужны столбцы «Оператор» и «Формат экрана»; «Разрешение» и «Соотношение сторон» используются для подбора ссылки.' },
+        { t: 'Положите адресную программу', d: 'Файл .xlsx — кликом или перетаскиванием. Нужны столбцы «Оператор» и «Формат экрана»; «Разрешение» и «Соотношение сторон» используются для подбора ссылки. Если в АП есть «Длительность» — возьмётся оттуда.' },
         { t: 'Проверьте папку с ТТ', d: 'Ссылка на нашу общую папку уже подставлена. Свою нужно указывать, только если ТТ лежат в другом месте.' },
         { t: 'Нажмите «Собрать ТТ»', d: 'Инструмент покажет, сколько строк прочитал, сколько связок осталось после склейки и по каким не нашлась длительность.' },
         { t: 'Заберите результат', d: 'Скачайте .xlsx или скопируйте таблицу в буфер — она вставляется прямо в письмо или в таблицу.' }
@@ -4567,7 +4617,8 @@ techreq: {
       items: [
         { t: 'Имя файла на Диске задаёт привязку', d: 'Работают три варианта: <code>Оператор 1920х1080</code>, <code>Оператор 2:1</code> и <code>Оператор общее</code>. Сначала ищется точное разрешение, потом соотношение сторон, потом общий файл.' },
         { t: 'Файлы должны быть опубликованы по отдельности', d: 'Публикации одной папки не хватает: у файла внутри неё нет постоянной ссылки, и в отчёте будет пусто.' },
-        { t: 'Пустая длительность — это не сбой', d: 'Значит, такой связки «оператор + формат» в справочнике ещё нет. Она попадёт во вкладку с ненайденными — сообщите, чтобы связку добавили.' },
+        { t: 'Пустая длительность — это не сбой', d: 'Значит, в АП колонки «Длительность» не было, а такой связки «оператор + формат» в справочнике ещё нет. Она попадёт во вкладку с ненайденными — сообщите, чтобы связку добавили.' },
+        { t: 'Две длительности через запятую', d: 'Если в АП на одну связку встретились и 5, и 10 секунд — обе останутся в строке: «5, 10». Значит, роликов нужно два.' },
         { t: 'Одна строка на связку, а не на GID', d: 'Дубли снимаются по «оператор + разрешение + длительность»: для ТТ важна связка, а не каждая поверхность.' }
       ] },
 

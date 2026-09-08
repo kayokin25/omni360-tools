@@ -25,8 +25,9 @@
 
   <h1>Технические требования по АП</h1>
   <p class="subtitle">
-    Загрузите адресную программу — инструмент определит длительность ролика для каждой связки
-    «оператор + формат», подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
+    Загрузите адресную программу — инструмент возьмёт длительность ролика из её колонки
+    «Длительность», а если такой колонки нет, определит по связке «оператор + формат»,
+    подтянет ссылку на ТТ с Яндекс.Диска и уберёт дубли.
   </p>
 
   <div class="section-label">Адресная программа</div>
@@ -198,6 +199,12 @@ $('go').addEventListener('click', async function () {
     log('Строк: ' + res.results.length + ' → после дедупликации ' + dedup.length +
         ' (удалено дублей: ' + (res.results.length - dedup.length) + ')', 'ok');
 
+    const fromAp = res.results.filter(function (r) { return r._apDur; }).length;
+    if (fromAp) {
+      log('Длительность взята из АП для ' + fromAp + ' строк' +
+          (fromAp < res.results.length ? ', остальные — из справочника' : ''), 'ok');
+    }
+
     const withDur = dedup.filter(function (r) { return r['Длительность (сек)'] !== ''; }).length;
     const withLink = dedup.filter(function (r) { return r['Ссылка на ТТ']; }).length;
     linkStats = { withDur: withDur, withLink: withLink, usedLinker: !!linker };
@@ -247,7 +254,8 @@ function render() {
       ' пар (оператор | формат):</b><br>' +
       [...misses].sort().map(escapeHtml).join('<br>') +
       '<br><br>Проверьте, что оператор и формат в АП записаны так же, как в справочнике ' +
-      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.).</div>';
+      '(формат — кодом: BILLBOARD, CITY_FORMAT и т.п.). Либо добавьте в АП колонку ' +
+      '«Длительность» — она важнее справочника.</div>';
   }
   if (linkStats.usedLinker && noLink.length) {
     notes += '<div class="note info">Без ссылки — <b>' + noLink.length +
