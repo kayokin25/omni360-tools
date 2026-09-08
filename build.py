@@ -40,6 +40,7 @@ NEW_TOOLS = [
     ('mergeTool',     'merge.html'),
     ('azimuthTool',   'azimuth.html'),
     ('reportsTool',   'reports.html'),
+    ('videoTool',     'video.html'),
     ('omnibuyTool',   'omnibuy.html'),
     ('mapTool',       'map.html'),
     # Гайды — такая же страница в iframe, только вместо инструмента показывает
@@ -133,6 +134,7 @@ UUIDS = {
     'guideTool':     'c8f52ae3-9d16-4b48-82e5-6b7d8fa9c081',
     'azimuthTool':   'd4a67c19-2e5f-4b83-a196-7c3f0e8b5d42',
     'reportsTool':   'e5b83d24-3f6a-4c95-a207-8d4e1b7c6a93',
+    'videoTool':     'f6c94e35-4a7b-4da6-b318-9e5f2c8d7b04',
 }
 
 # uuid ресурсов, которые были в исходной панели (калькулятор, карта, react, рантайм).

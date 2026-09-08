@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Правка видео под ТТ</title>
+<style>
+/*__INJECT:tool-ui.css__*/
+
+/* ── замер дисклеймера ── */
+#frameWrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #000; line-height: 0; }
+#frame { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+#probe { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--desc); cursor: pointer; margin-bottom: 6px; }
+.chk input { width: auto; accent-color: var(--accent); cursor: pointer; }
+.pane { display: none; }
+.pane.on { display: block; }
+</style>
+<script>
+/*__INJECT:theme.js__*/
+</script>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">Omni360</div>
+      <div class="logo-sub">правка видео под ТТ</div>
+    </div>
+  </div>
+
+  <h1>Правка видео под ТТ</h1>
+  <p class="subtitle">
+    Подогнать готовый ролик под требования оператора, не открывая монтажку: длительность,
+    разрешение, битрейт, звуковая дорожка. Отдельно — линейка для дисклеймера и знака
+    возрастного ограничения: высота и доля площади кадра.
+  </p>
+
+  <div class="tabs" id="mainTabs">
+    <button class="tab on" data-p="convert">Переделать ролик</button>
+    <button class="tab" data-p="measure">Замер дисклеймера</button>
+  </div>
+
+  <!-- ═════════════════════════ переделать ролик ═════════════════════════ -->
+  <div class="pane on" id="paneConvert">
+
+    <div class="section-label">Ролик</div>
+    <div class="drop" id="drop">
+      <div class="icon">🎬</div>
+      <div class="main" id="dropMain">Выберите видео или перетащите сюда</div>
+      <div class="sub" id="dropSub">mp4, mov, avi, mkv, webm — что угодно, что примет ffmpeg</div>
+    </div>
+    <input type="file" id="file" accept="video/*">
+
+    <div class="tiles" id="srcTiles" style="display:none"></div>
+
+    <div class="section-label">Что поменять</div>
+    <div class="grid3">
+      <div class="field">
+        <label for="dur">Длительность, с</label>
+        <input type="number" id="dur" min="0.1" step="0.1" placeholder="как есть">
+        <div class="hint">Меньше исходной — обрежется. Больше — ролик повторится нужное число раз.</div>
+      </div>
+      <div class="field">
+        <label for="bitrate">Битрейт, кбит/с</label>
+        <input type="number" id="bitrate" min="100" step="100" placeholder="как есть">
+        <div class="hint">Ставим потолком, а не средним: в ТТ обычно «не выше».</div>
+      </div>
+      <div class="field">
+        <label for="wantW">Вписать в, пикс.</label>
+        <div class="grid2">
+          <input type="number" id="wantW" min="2" step="2" placeholder="ширина">
+          <input type="number" id="wantH" min="2" step="2" placeholder="высота">
+        </div>
+        <div class="hint">Пропорции сохраняются, можно задать что-то одно. Увеличивать не станем.</div>
+      </div>
+    </div>
+
+    <label class="chk"><input type="checkbox" id="mute"> убрать звуковую дорожку</label>
+
+    <div id="plan"></div>
+
+    <div class="btn-row">
+      <button class="btn" id="go" disabled>Переделать</button>
+      <button class="btn ghost" id="reset" style="display:none">Сбросить</button>
+    </div>
+
+    <div class="progress" id="prog">
+      <div class="bar" id="bar"><i style="width:0"></i></div>
+      <div class="progress-text" id="progText"></div>
+    </div>
+    <div class="log" id="log"></div>
+
+    <div class="results" id="results">
+      <div class="divider"></div>
+      <div class="section-label">Готово</div>
+      <div class="tiles" id="outTiles"></div>
+      <div class="btn-row">
+        <button class="btn" id="dl">Скачать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════ замер дисклеймера ════════════════════════ -->
+  <div class="pane" id="paneMeasure">
+
+    <div class="section-label">Ролик или картинка</div>
+    <div class="drop" id="mDrop">
+      <div class="icon">📐</div>
+      <div class="main" id="mDropMain">Выберите файл или перетащите сюда</div>
+      <div class="sub" id="mDropSub">видео покажем кадром, картинку — как есть</div>
+    </div>
+    <input type="file" id="mFile" accept="video/*,image/*">
+
+    <div id="mBody" style="display:none">
+      <div class="field" id="timeField">
+        <label for="tPos">Кадр: <span id="tLabel">—</span></label>
+        <input type="range" id="tPos" min="0" max="100" value="100" step="1">
+      </div>
+
+      <div id="frameWrap"><canvas id="frame"></canvas></div>
+      <div class="hint">
+        Обведите мышкой предупреждение или знак возраста. Рамок может быть несколько —
+        например текст и знак отдельно; тогда «всего» посчитается суммой.
+      </div>
+
+      <div class="btn-row">
+        <button class="btn ghost" id="mUndo">Убрать последнюю</button>
+        <button class="btn ghost" id="mClear">Очистить</button>
+      </div>
+
+      <div class="section-label">Норма</div>
+      <div class="field" style="max-width:280px">
+        <label for="norm">Минимум площади по ТТ, %</label>
+        <input type="number" id="norm" min="0" step="0.5" placeholder="не проверять">
+        <div class="hint">Цифру берите из ТТ оператора или из закона по своей категории — здесь она ничего не значит по умолчанию.</div>
+      </div>
+
+      <div id="mResults"></div>
+    </div>
+  </div>
+
+  <video id="probe" preload="auto" muted playsinline></video>
+  <div class="footer">omni360 · отдел по ведению РК</div>
+</div>
+</div>
+
+<script>
+/*__INJECT:omnilib.js__*/
+</script>
+<script>
+/*__INJECT:video-core.js__*/
+</script>
+<script>
+(function () {
+'use strict';
+const L = window.OmniLib, V = window.VideoCore;
+const $ = function (id) { return document.getElementById(id); };
+const num = function (id) { const v = parseFloat($(id).value); return isFinite(v) && v > 0 ? v : null; };
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function tile(v, k, cls) {
+  return '<div class="tile ' + (cls || '') + '"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+}
+/* Крео бывают и по 40 КБ — «0,0 МБ» в плитке выглядит как пустой файл. */
+function kb(bytes) {
+  return bytes < 1024 * 1024
+    ? Math.round(bytes / 1024) + ' КБ'
+    : (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' МБ';
+}
+
+/* ── переключение половин инструмента ── */
+[...$('mainTabs').children].forEach(function (b) {
+  b.addEventListener('click', function () {
+    [...$('mainTabs').children].forEach(function (x) { x.classList.toggle('on', x === b); });
+    $('paneConvert').classList.toggle('on', b.dataset.p === 'convert');
+    $('paneMeasure').classList.toggle('on', b.dataset.p === 'measure');
+  });
+});
+function openPane(name) {
+  [...$('mainTabs').children].forEach(function (b) {
+    if (b.dataset.p === name) b.click();
+  });
+}
+
+/* ══════════════════════════ ffmpeg — свой воркер ══════════════════════════
+   Ядро (@ffmpeg/core) — настоящий ffmpeg, собранный в wasm, 32 МБ. Тянем его
+   с CDN и только при первом «Переделать»: человек, зашедший померить
+   дисклеймер, не должен качать тридцать мегабайт.
+
+   Обёртку @ffmpeg/ffmpeg не берём: её UMD-сборка нерабочая — она поднимает
+   воркер как модуль, а внутри воркера зовёт importScripts, которого в
+   module-воркере нет, и любой load падает на «Cannot find module». Свой
+   воркер из blob — обычный, importScripts в нём есть, и кода на него уходит
+   меньше, чем на обход чужой поломки. Контракт ядра тот же, что использует
+   обёртка: createFFmpegCore + FS + exec/ret/reset. */
+const CORE_BASE = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+
+const WORKER_SRC = [
+  'let core = null;',
+  'self.onmessage = async function (e) {',
+  '  const m = e.data;',
+  '  try {',
+  '    if (m.type === "load") {',
+  '      importScripts(m.coreURL);',
+  /* Путь к .wasm ядро читает из хвоста mainScriptUrlOrBlob после «#» —
+     такой у него способ узнать, где лежит бинарник. */
+  '      core = await createFFmpegCore({ mainScriptUrlOrBlob: m.coreURL + "#" +',
+  '        btoa(JSON.stringify({ wasmURL: m.wasmURL, workerURL: "" })) });',
+  '      core.setLogger(function (x) { self.postMessage({ type: "log", message: x.message }); });',
+  '      core.setProgress(function (x) { self.postMessage({ type: "progress", progress: x.progress }); });',
+  '    } else if (m.type === "write") {',
+  '      core.FS.writeFile(m.name, m.data);',
+  '    } else if (m.type === "exec") {',
+  '      if (core.setTimeout) core.setTimeout(-1);',
+  '      core.exec.apply(core, m.args);',
+  '      const code = core.ret;',
+  '      core.reset();',
+  '      self.postMessage({ id: m.id, ok: true, code: code });',
+  '      return;',
+  '    } else if (m.type === "read") {',
+  '      const data = core.FS.readFile(m.name);',
+  '      self.postMessage({ id: m.id, ok: true, data: data }, [data.buffer]);',
+  '      return;',
+  '    } else if (m.type === "unlink") {',
+  '      try { core.FS.unlink(m.name); } catch (err) {}',
+  '    }',
+  '    self.postMessage({ id: m.id, ok: true });',
+  '  } catch (err) {',
+  '    self.postMessage({ id: m.id, ok: false, error: String((err && err.message) || err) });',
+  '  }',
+  '};'
+].join('\n');
+
+let ffmpeg = null;
+let ffLog = [];
+
+function makeFfmpeg() {
+  const w = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })));
+  const waiting = new Map();
+  let seq = 0;
+
+  const api = {
+    call: function (msg, transfer) {
+      return new Promise(function (ok, bad) {
+        const id = ++seq;
+        waiting.set(id, function (d) { d.ok ? ok(d) : bad(new Error(d.error)); });
+        w.postMessage(Object.assign({ id: id }, msg), transfer || []);
+      });
+    }
+  };
+
+  w.onmessage = function (ev) {
+    const d = ev.data;
+    if (d.type === 'log') { ffLog.push(d.message); return; }
+    if (d.type === 'progress') {
+      const p = Math.max(0, Math.min(1, d.progress || 0));
+      progress(true, 'Перекодирую: ' + Math.round(p * 100) + ' %', p);
+      return;
+    }
+    const f = waiting.get(d.id);
+    if (f) { waiting.delete(d.id); f(d); }
+  };
+  /* Иначе обещание висело бы вечно: упавший воркер сообщений уже не пришлёт. */
+  w.onerror = function (ev) {
+    const dead = { ok: false, error: ev.message || 'воркер ffmpeg остановился' };
+    waiting.forEach(function (f) { f(dead); });
+    waiting.clear();
+  };
+
+  return api;
+}
+
+/* Ядро качаем сами, а не отдаём это emscripten: он скачивает молча, а без
+   полосы 32 МБ выглядят как зависший инструмент. unpkg отдаёт файл сжатым и
+   без длины — тогда показываем накопленные мегабайты. */
+async function fetchWasmURL() {
+  const r = await fetch(CORE_BASE + '/ffmpeg-core.wasm');
+  if (!r.ok) throw new Error('не загрузился ffmpeg-core.wasm (' + r.status + ')');
+  if (!r.body) {
+    return URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: 'application/wasm' }));
+  }
+  const total = +(r.headers.get('content-length') || 0);
+  const reader = r.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for (;;) {
+    const c = await reader.read();
+    if (c.done) break;
+    chunks.push(c.value);
+    got += c.value.length;
+    progress(true, 'Загружаю ffmpeg: ' + (total
+      ? Math.min(100, Math.round(got / total * 100)) + ' %'
+      : (got / 1024 / 1024).toFixed(0) + ' из 32 МБ') +
+      ' — только в первый раз, дальше из кэша браузера',
+      total ? Math.min(1, got / total) : null);
+  }
+  return URL.createObjectURL(new Blob(chunks, { type: 'application/wasm' }));
+}
+
+async function getFfmpeg() {
+  if (ffmpeg) return ffmpeg;
+  progress(true, 'Загружаю ffmpeg…', null);
+  const wasmURL = await fetchWasmURL();
+  const api = makeFfmpeg();
+  progress(true, 'Запускаю ffmpeg…', null);
+  await api.call({ type: 'load', coreURL: CORE_BASE + '/ffmpeg-core.js', wasmURL: wasmURL });
+  ffmpeg = api;
+  return ffmpeg;
+}
+
+/* ── выбор файла ── */
+let srcFile = null, srcMeta = null, outBlob = null, outFileName = '';
+
+function bindDrop(dropId, inputId, onFile) {
+  const drop = $(dropId), input = $(inputId);
+  drop.addEventListener('click', function () { input.click(); });
+  drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', function () { drop.classList.remove('over'); });
+  drop.addEventListener('drop', function (e) {
+    e.preventDefault(); drop.classList.remove('over');
+    if (e.dataTransfer.files && e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', function () {
+    if (input.files && input.files.length) onFile(input.files[0]);
+  });
+}
+
+/* Метаданные из самого браузера: мгновенно и без ffmpeg. Если формат браузеру
+   незнаком — не беда, точные цифры всё равно возьмём из пробы ffmpeg. */
+function videoMeta(file) {
+  return new Promise(function (ok) {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    const url = URL.createObjectURL(file);
+    const done = function (res) { if (!res) URL.revokeObjectURL(url); ok(res); };
+    v.onloadedmetadata = function () {
+      done({ w: v.videoWidth, h: v.videoHeight, dur: v.duration, url: url });
+    };
+    v.onerror = function () { done(null); };
+    v.src = url;
+  });
+}
+
+bindDrop('drop', 'file', async function (f) {
+  srcFile = f;
+  if (srcMeta && srcMeta.url) URL.revokeObjectURL(srcMeta.url);
+  srcMeta = await videoMeta(f);
+
+  $('drop').classList.add('filled');
+  $('dropMain').textContent = f.name;
+  $('dropSub').textContent = kb(f.size) + (srcMeta
+    ? ' — ' + srcMeta.w + '×' + srcMeta.h + ', ' + V.fmtNum(srcMeta.dur, 2) + ' с'
+    : ' — метаданные прочитаем при запуске');
+  $('go').disabled = false;
+
+  if (srcMeta) {
+    $('srcTiles').style.display = '';
+    $('srcTiles').innerHTML =
+      tile(srcMeta.w + '×' + srcMeta.h, 'разрешение') +
+      tile(V.fmtNum(srcMeta.dur, 2) + ' с', 'длительность') +
+      tile(Math.round(f.size * 8 / 1024 / srcMeta.dur) + ' кбит/с', 'битрейт файла') +
+      tile(kb(f.size), 'размер');
+  } else {
+    $('srcTiles').style.display = 'none';
+  }
+  showPlan();
+});
+
+/* ── что получится: считаем до запуска, чтобы не гадать по результату ── */
+['dur', 'bitrate', 'wantW', 'wantH'].forEach(function (id) {
+  $(id).addEventListener('input', showPlan);
+});
+$('mute').addEventListener('change', showPlan);
+
+function planParts() {
+  const target = num('dur'), br = num('bitrate');
+  const scale = srcMeta ? V.scaleTo(srcMeta.w, srcMeta.h, num('wantW'), num('wantH')) : null;
+  return { target: target, br: br, scale: scale, mute: $('mute').checked };
+}
+
+function showPlan() {
+  if (!srcFile) { $('plan').innerHTML = ''; return; }
+  const p = planParts();
+  const lines = [];
+
+  if (srcMeta && p.scale) lines.push('Разрешение: ' + srcMeta.w + '×' + srcMeta.h + ' → <b>' + p.scale.w + '×' + p.scale.h + '</b>');
+  else if (srcMeta && (num('wantW') || num('wantH'))) lines.push('Разрешение не меняем: заданный размер не меньше исходного');
+
+  if (srcMeta && p.target) {
+    const loop = V.loopPlan(srcMeta.dur, p.target);
+    if (loop) {
+      lines.push('Длительность: ' + V.fmtNum(srcMeta.dur, 2) + ' → <b>' + V.fmtNum(p.target, 2) + ' с</b>, ролик пройдёт ' +
+        loop.copies + ' ' + V.plural(loop.copies, ['раз', 'раза', 'раз']) +
+        (loop.whole ? ' целиком' : ', последний повтор обрежется на ' + V.fmtNum(loop.lastCut, 2) + ' с'));
+    } else if (p.target < srcMeta.dur - 0.05) {
+      lines.push('Длительность: ' + V.fmtNum(srcMeta.dur, 2) + ' → <b>' + V.fmtNum(p.target, 2) + ' с</b>, конец обрежется');
+    }
+  } else if (p.target) {
+    lines.push('Длительность: <b>' + V.fmtNum(p.target, 2) + ' с</b>');
+  }
+
+  if (p.br) lines.push('Битрейт: не выше <b>' + p.br + ' кбит/с</b>');
+  if (p.mute) lines.push('Звуковая дорожка будет удалена');
+
+  let html = lines.length
+    ? '<div class="note info">' + lines.join('<br>') + '</div>'
+    : '<div class="note info">Ничего не задано — ролик просто перекодируется в mp4 (H.264). ' +
+      'Заполните хотя бы одно поле выше.</div>';
+
+  if (srcMeta && p.target && V.loopPlan(srcMeta.dur, p.target) && !p.mute) {
+    html += '<div class="note warn">Удлиняем повтором, а звук не убран — он тоже начнётся заново ' +
+      'с каждого повтора. Если это не задумано, отметьте «убрать звуковую дорожку».</div>';
+  }
+  $('plan').innerHTML = html;
+}
+
+/* ── лог и прогресс ── */
+function log(msg, kind) {
+  const el = $('log');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + escapeHtml(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function progress(on, text, ratio) {
+  $('prog').classList.toggle('on', !!on);
+  if (text !== undefined && text !== null) $('progText').textContent = text;
+  const bar = $('bar');
+  if (ratio === null || ratio === undefined) {
+    bar.classList.add('indet');
+    bar.firstElementChild.style.width = '35%';
+  } else {
+    bar.classList.remove('indet');
+    bar.firstElementChild.style.width = Math.round(ratio * 100) + '%';
+  }
+}
+
+/* ── запуск ── */
+$('go').addEventListener('click', async function () {
+  if (!srcFile) return;
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  outBlob = null;
+
+  const inName = 'in' + (/\.[^.]+$/.exec(srcFile.name) || ['.mp4'])[0];
+  const started = Date.now();
+
+  try {
+    const ff = await getFfmpeg();
+
+    progress(true, 'Читаю файл…', null);
+    const bytes = new Uint8Array(await srcFile.arrayBuffer());
+    await ff.call({ type: 'write', name: inName, data: bytes }, [bytes.buffer]);
+
+    /* Проба: ffmpeg без выхода печатает всё про потоки и выходит с ошибкой —
+       это нормально, нам нужен именно лог. */
+    ffLog = [];
+    progress(true, 'Смотрю, что внутри…', null);
+    await ff.call({ type: 'exec', args: ['-hide_banner', '-i', inName] });
+    const probe = V.parseProbe(ffLog.join('\n'));
+
+    const srcDur = probe.durSec || (srcMeta && srcMeta.dur) || null;
+    const srcW = probe.width || (srcMeta && srcMeta.w) || null;
+    const srcH = probe.height || (srcMeta && srcMeta.h) || null;
+    log('В файле: ' + (srcW && srcH ? srcW + '×' + srcH : 'разрешение не прочитал') +
+        (srcDur ? ', ' + V.fmtNum(srcDur, 2) + ' с' : '') +
+        (probe.fps ? ', ' + V.fmtNum(probe.fps, 2) + ' fps' : '') +
+        (probe.videoKbps ? ', видео ' + probe.videoKbps + ' кбит/с' : '') +
+        (probe.hasAudio ? ', со звуком' : ', без звука'), 'ok');
+    if ($('mute').checked && !probe.hasAudio) log('Звука в файле и не было — убирать нечего.', 'warn');
+
+    const target = num('dur');
+    const scale = V.scaleTo(srcW, srcH, num('wantW'), num('wantH'));
+    const bitrateK = num('bitrate');
+    const mute = $('mute').checked;
+
+    const parts = [];
+    if (scale) parts.push(scale.w + 'x' + scale.h);
+    if (target) parts.push(V.fmtNum(target, 2) + ' с');
+    if (bitrateK) parts.push(bitrateK + ' кбит');   /* косая в имени файла нельзя */
+    if (mute) parts.push('без звука');
+    outFileName = V.outName(srcFile.name, parts);
+
+    const args = V.buildArgs({
+      inName: inName, outName: 'out.mp4', srcDur: srcDur, targetDur: target,
+      scale: scale, mute: mute, bitrateK: bitrateK
+    });
+    log('ffmpeg ' + args.join(' '));
+
+    ffLog = [];
+    progress(true, 'Перекодирую…', 0);
+    const run = await ff.call({ type: 'exec', args: args });
+    if (run.code !== 0) {
+      throw new Error('ffmpeg вышел с кодом ' + run.code + '. Последние строки лога:\n' +
+        ffLog.slice(-6).join('\n'));
+    }
+
+    const out = await ff.call({ type: 'read', name: 'out.mp4' });
+    outBlob = new Blob([out.data.buffer], { type: 'video/mp4' });
+    await ff.call({ type: 'unlink', name: inName });
+    await ff.call({ type: 'unlink', name: 'out.mp4' });
+
+    progress(false);
+    log('Готово за ' + V.fmtNum((Date.now() - started) / 1000, 1) + ' с: ' + kb(outBlob.size), 'ok');
+
+    const outDur = target || srcDur;
+    $('outTiles').innerHTML =
+      tile((scale ? scale.w + '×' + scale.h : (srcW && srcH ? srcW + '×' + srcH : '—')), 'разрешение', 'good') +
+      tile(outDur ? V.fmtNum(outDur, 2) + ' с' : '—', 'длительность') +
+      tile(kb(outBlob.size), 'размер') +
+      tile(outDur ? Math.round(outBlob.size * 8 / 1024 / outDur) + ' кбит/с' : '—', 'битрейт файла') +
+      tile(mute || !probe.hasAudio ? 'нет' : 'есть', 'звук');
+    $('results').classList.add('on');
+    $('reset').style.display = '';
+  } catch (e) {
+    progress(false);
+    log('Ошибка: ' + e.message, 'err');
+    if (/не загрузился|Failed to fetch|NetworkError/i.test(e.message)) {
+      log('ffmpeg подгружается из интернета при первом запуске — без сети эта половина ' +
+          'инструмента не работает. Замер дисклеймера работает и без сети.', 'warn');
+    }
+    console.error(e);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+
+$('dl').addEventListener('click', function () {
+  if (outBlob) L.download(outBlob, outFileName);
+});
+
+$('reset').addEventListener('click', function () {
+  srcFile = null; outBlob = null;
+  if (srcMeta && srcMeta.url) URL.revokeObjectURL(srcMeta.url);
+  srcMeta = null;
+  $('drop').classList.remove('filled');
+  $('dropMain').textContent = 'Выберите видео или перетащите сюда';
+  $('dropSub').textContent = 'mp4, mov, avi, mkv, webm — что угодно, что примет ffmpeg';
+  $('srcTiles').style.display = 'none';
+  $('go').disabled = true;
+  $('results').classList.remove('on');
+  $('log').innerHTML = ''; $('log').classList.remove('on');
+  $('plan').innerHTML = '';
+  $('reset').style.display = 'none';
+  $('file').value = '';
+});
+
+/* ══════════════════════════ замер дисклеймера ══════════════════════════
+   Всё в пикселях кадра, а не страницы: картинка на странице растянута по
+   ширине карточки, и проценты, снятые с неё, были бы про размер окна. */
+const cv = $('frame');
+const ctx = cv.getContext('2d');
+const base = document.createElement('canvas');   // кадр без рамок
+let boxes = [], mSrc = null, drag = null;
+
+bindDrop('mDrop', 'mFile', function (f) { loadForMeasure(f); });
+
+async function loadForMeasure(f) {
+  boxes = [];
+  $('mDrop').classList.add('filled');
+  $('mDropMain').textContent = f.name;
+
+  if (/^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name)) {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = function () {
+      mSrc = { kind: 'image', el: img, w: img.naturalWidth, h: img.naturalHeight };
+      $('timeField').style.display = 'none';
+      $('mDropSub').textContent = img.naturalWidth + '×' + img.naturalHeight;
+      $('mBody').style.display = '';
+      drawBase();
+    };
+    img.onerror = function () { $('mDropSub').textContent = 'картинку не удалось открыть'; };
+    img.src = url;
+    return;
+  }
+
+  const meta = await videoMeta(f);
+  if (!meta) {
+    $('mDropSub').textContent = 'этот формат браузер не показывает — переделайте его в mp4 на соседней вкладке';
+    $('mBody').style.display = 'none';
+    return;
+  }
+  const v = $('probe');
+  v.src = meta.url;
+  /* Пока probe не догрузил файл, currentTime присвоить нельзя — кадр молча
+     останется прошлым. Ждём данные, а не только метаданные. */
+  await new Promise(function (ok) {
+    const done = function () { v.removeEventListener('loadeddata', done); ok(); };
+    v.addEventListener('loadeddata', done);
+    v.load();
+  });
+  mSrc = { kind: 'video', el: v, w: meta.w, h: meta.h, dur: meta.dur };
+  $('timeField').style.display = '';
+  $('mDropSub').textContent = meta.w + '×' + meta.h + ', ' + V.fmtNum(meta.dur, 2) + ' с';
+  $('mBody').style.display = '';
+
+  /* Дисклеймер чаще всего в конце — открываем на последнем кадре, но не на
+     самом хвосте: там у многих файлов уже чёрный кадр. */
+  $('tPos').value = 96;
+  await seekTo(meta.dur * 0.96);
+}
+
+function seekTo(t) {
+  return new Promise(function (ok) {
+    const v = $('probe');
+    const done = function () { v.removeEventListener('seeked', done); drawBase(); ok(); };
+    v.addEventListener('seeked', done);
+    v.currentTime = Math.max(0, Math.min(t, (mSrc.dur || 0) - 0.01));
+  });
+}
+
+$('tPos').addEventListener('input', function () {
+  if (!mSrc || mSrc.kind !== 'video') return;
+  const t = mSrc.dur * ($('tPos').value / 100);
+  $('tLabel').textContent = V.fmtNum(t, 2) + ' с из ' + V.fmtNum(mSrc.dur, 2);
+  seekTo(t);
+});
+
+function drawBase() {
+  if (!mSrc) return;
+  base.width = cv.width = mSrc.w;
+  base.height = cv.height = mSrc.h;
+  base.getContext('2d').drawImage(mSrc.el, 0, 0, mSrc.w, mSrc.h);
+  if (mSrc.kind === 'video') {
+    $('tLabel').textContent = V.fmtNum($('probe').currentTime, 2) + ' с из ' + V.fmtNum(mSrc.dur, 2);
+  }
+  redraw();
+}
+
+function redraw() {
+  ctx.drawImage(base, 0, 0);
+  const lw = Math.max(2, Math.round(cv.width / 400));
+  ctx.lineWidth = lw;
+  ctx.font = (lw * 7) + 'px system-ui, sans-serif';
+  ctx.textBaseline = 'top';
+
+  const all = drag ? boxes.concat([drag]) : boxes;
+  all.forEach(function (b, i) {
+    ctx.fillStyle = 'rgba(0, 198, 255, .18)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = '#00c6ff';
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+    if (i < boxes.length) {
+      const label = String(i + 1);
+      ctx.fillStyle = '#00c6ff';
+      ctx.fillRect(b.x, b.y, lw * 12, lw * 10);
+      ctx.fillStyle = '#001018';
+      ctx.fillText(label, b.x + lw * 3, b.y + lw * 1.5);
+    }
+  });
+  /* Во время растягивания рамки таблицу не пересобираем: она перестраивалась
+     бы на каждое движение мыши. */
+  if (!dragFrom) renderMeasure();
+}
+
+function atFrame(e) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) / r.width * cv.width,
+    y: (e.clientY - r.top) / r.height * cv.height
+  };
+}
+function rectOf(a, b) {
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+           w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+}
+
+let dragFrom = null;
+cv.addEventListener('pointerdown', function (e) {
+  if (!mSrc) return;
+  cv.setPointerCapture(e.pointerId);
+  dragFrom = atFrame(e);
+  drag = { x: dragFrom.x, y: dragFrom.y, w: 0, h: 0 };
+});
+cv.addEventListener('pointermove', function (e) {
+  if (!dragFrom) return;
+  drag = rectOf(dragFrom, atFrame(e));
+  redraw();
+});
+cv.addEventListener('pointerup', function (e) {
+  if (!dragFrom) return;
+  const r = rectOf(dragFrom, atFrame(e));
+  dragFrom = null; drag = null;
+  /* Одиночный клик — это не рамка, а промах: такие не добавляем. */
+  if (r.w >= 4 && r.h >= 4) boxes.push(r);
+  redraw();
+});
+cv.addEventListener('pointercancel', function () { dragFrom = null; drag = null; redraw(); });
+
+$('mUndo').addEventListener('click', function () { boxes.pop(); redraw(); });
+$('mClear').addEventListener('click', function () { boxes = []; redraw(); });
+$('norm').addEventListener('input', renderMeasure);
+
+function renderMeasure() {
+  if (!mSrc) return;
+  const host = $('mResults');
+  if (!boxes.length) {
+    host.innerHTML = '<div class="note info">Обведите дисклеймер на кадре — посчитаем высоту ' +
+      'и долю площади. Кадр: <b>' + mSrc.w + '×' + mSrc.h + '</b>, площадь ' +
+      (mSrc.w * mSrc.h).toLocaleString('ru-RU') + ' пикс².</div>';
+    return;
+  }
+
+  const d = V.disclaimer(boxes, mSrc.w, mSrc.h);
+  const norm = num('norm');
+  const pass = norm === null ? null : d.total.areaPct >= norm;
+
+  let html = '<div class="tiles">' +
+    tile(d.total.hPx + ' пикс.', 'высота всего', 'good') +
+    tile(V.fmtNum(d.total.hPct, 2) + ' %', 'от высоты кадра') +
+    tile(V.fmtNum(d.total.areaPct, 2) + ' %', 'от площади кадра',
+         pass === null ? '' : (pass ? 'good' : 'bad')) +
+    tile(boxes.length, boxes.length === 1 ? 'рамка' : 'рамок') +
+    '</div>';
+
+  if (pass !== null) {
+    html += pass
+      ? '<div class="note ok">Норма ' + V.fmtNum(norm, 2) + ' % выполнена: ' +
+        V.fmtNum(d.total.areaPct, 2) + ' % площади кадра.</div>'
+      : '<div class="note err">Меньше нормы: ' + V.fmtNum(d.total.areaPct, 2) + ' % против ' +
+        V.fmtNum(norm, 2) + ' %. Не хватает ' + V.fmtNum(norm - d.total.areaPct, 2) + ' п. п.</div>';
+  }
+
+  html += '<div class="table-wrap"><table><thead><tr>' +
+    ['№', 'Ширина, пикс.', 'Высота, пикс.', '% ширины', '% высоты', '% площади']
+      .map(function (c) { return '<th>' + c + '</th>'; }).join('') +
+    '</tr></thead><tbody>';
+  d.rows.forEach(function (r, i) {
+    html += '<tr><td>' + (i + 1) + '</td>' +
+      '<td class="num">' + r.wPx + '</td>' +
+      '<td class="num">' + r.hPx + '</td>' +
+      '<td class="num">' + V.fmtNum(r.wPct, 2) + '</td>' +
+      '<td class="num">' + V.fmtNum(r.hPct, 2) + '</td>' +
+      '<td class="num">' + V.fmtNum(r.areaPct, 2) + '</td></tr>';
+  });
+  if (d.rows.length > 1) {
+    html += '<tr><td><b>всего</b></td><td class="num muted">—</td>' +
+      '<td class="num"><b>' + d.total.hPx + '</b></td><td class="num muted">—</td>' +
+      '<td class="num"><b>' + V.fmtNum(d.total.hPct, 2) + '</b></td>' +
+      '<td class="num"><b>' + V.fmtNum(d.total.areaPct, 2) + '</b></td></tr>';
+  }
+  html += '</tbody></table></div>' +
+    '<div class="btn-row"><button class="btn ghost" id="mCopy">Копировать замер</button></div>';
+
+  host.innerHTML = html;
+  $('mCopy').addEventListener('click', async function () {
+    const lines = ['Кадр\t' + mSrc.w + 'x' + mSrc.h,
+                   '№\tширина, пикс.\tвысота, пикс.\t% ширины\t% высоты\t% площади'];
+    d.rows.forEach(function (r, i) {
+      lines.push([i + 1, r.wPx, r.hPx, V.fmtNum(r.wPct, 2), V.fmtNum(r.hPct, 2), V.fmtNum(r.areaPct, 2)].join('\t'));
+    });
+    lines.push(['всего', '', d.total.hPx, '', V.fmtNum(d.total.hPct, 2), V.fmtNum(d.total.areaPct, 2)].join('\t'));
+    const text = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    $('mCopy').textContent = 'Скопировано ✓';
+    setTimeout(function () { if ($('mCopy')) $('mCopy').textContent = 'Копировать замер'; }, 1800);
+  });
+}
+
+/* ── демо-прогон (#demo=1 из гайда) ───────────────────────────────────────
+   Демо только для замера: тянуть 32 МБ ядра ради показа было бы издевательством.
+   Кадр рисуется здесь же — с полосой предупреждения и знаком возраста, чтобы
+   проценты считались по-настоящему, а не по подписанной картинке. */
+function demoNote(html) {
+  const el = document.createElement('div');
+  el.className = 'note info';
+  el.innerHTML = html;
+  const sub = document.querySelector('.subtitle');
+  sub.parentNode.insertBefore(el, sub.nextSibling);
+}
+
+if (/(?:^|[#&])demo=1\b/.test(location.hash)) {
+  const c = document.createElement('canvas');
+  c.width = 1920; c.height = 960;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 1920, 960);
+  grad.addColorStop(0, '#0b2a4a'); grad.addColorStop(1, '#12694f');
+  g.fillStyle = grad; g.fillRect(0, 0, 1920, 960);
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 150px system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  g.fillText('ДЕМО-КРЕО', 130, 420);
+  // полоса предупреждения снизу
+  g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(0, 862, 1920, 98);
+  g.fillStyle = '#e6edf5'; g.font = '46px system-ui, sans-serif';
+  g.fillText('Предупреждение о вреде — демонстрационный текст', 40, 911);
+  // знак возрастного ограничения в углу
+  g.fillStyle = '#ffffff'; g.fillRect(1788, 40, 92, 92);
+  g.fillStyle = '#0b2a4a'; g.font = 'bold 46px system-ui, sans-serif';
+  g.fillText('18+', 1800, 88);
+
+  c.toBlob(function (blob) {
+    openPane('measure');
+    loadForMeasure(new File([blob], 'Демо-крео 1920x960.png', { type: 'image/png' }));
+    /* Рамки ставим ровно по нарисованным объектам — видно, что цифры честные. */
+    setTimeout(function () {
+      boxes = [{ x: 0, y: 862, w: 1920, h: 98 }, { x: 1788, y: 40, w: 92, h: 92 }];
+      $('norm').value = '5';
+      redraw();
+    }, 120);
+    demoNote('<b>Демо-данные.</b> Кадр 1920×960 нарисован здесь же: полоса предупреждения ' +
+      'внизу и знак «18+» в углу уже обведены, проценты посчитаны по-настоящему. ' +
+      'Рамки можно двигать, стирать и обводить заново, а свой файл — положить сверху. ' +
+      'Вторая половина инструмента, «Переделать ролик», ждёт настоящее видео.');
+  }, 'image/png');
+}
+
+})();
+</script>
+</body>
+</html>

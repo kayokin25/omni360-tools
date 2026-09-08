@@ -184,6 +184,7 @@ const TOOLS = [
   { id:'merge', name:'Объединение таблиц', desc:'Несколько xlsx в один файл без ручной правки', type:'internal', get src(){ return window.__resources ? window.__resources.mergeTool : 'merge.html'; }, letter:'Σ' },
   { id:'azimuth', name:'Добавление азимутов', desc:'Столбец «Азимут» в эфирки по инвентарю, без пересборки файла', type:'internal', get src(){ return window.__resources ? window.__resources.azimuthTool : 'azimuth.html'; }, letter:'∠' },
   { id:'reports', name:'Подготовка отчётности', desc:'Инвенто, MasterAd и другие форматы — несколько сценариев в одном инструменте', type:'internal', get src(){ return window.__resources ? window.__resources.reportsTool : 'reports.html'; }, letter:'Р' },
+  { id:'video', name:'Правка видео под ТТ', desc:'Длительность, разрешение, битрейт, звук и замер дисклеймера', type:'internal', get src(){ return window.__resources ? window.__resources.videoTool : 'video.html'; }, letter:'▶' },
   { id:'monitoring', name:'Мониторинг кампаний', desc:'Статусы и показатели активных кампаний', type:'external', url:'https://leafy-salmiakki-19a465.netlify.app/', letter:'М' },
   { id:'planner', name:'Планировщик', desc:'Планирование размещений и медиапланов', type:'external', url:'https://omni360.adtech.systems/page103658706.html', letter:'П' }
 ];

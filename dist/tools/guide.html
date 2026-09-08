@@ -3259,6 +3259,171 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
 </script>
 <script>
 /* ============================================================================
+   Правка видео под ТТ — расчёты.
+
+   Здесь нет ни ffmpeg, ни DOM: только собрать аргументы командной строки,
+   разобрать лог ffmpeg и посчитать проценты дисклеймера. Кодирует уже сам
+   ffmpeg.wasm в tools/video.html, а эти функции проверяются в node
+   (lib/test_video.mjs) — иначе арифметику пропорций пришлось бы проверять
+   тридцатимегабайтным wasm-ом.
+   ========================================================================== */
+(function (root) {
+'use strict';
+
+/* Кодировщики H.264 не берут нечётные стороны при yuv420p — округляем до
+   чётного сразу, а не ловим потом «width not divisible by 2». */
+function even(x) {
+  return Math.max(2, Math.round(x / 2) * 2);
+}
+
+/* Новое разрешение с сохранением пропорций: вписываем в заданные габариты,
+   любой из них можно не задавать. Увеличивать не берёмся — пропорции-то
+   сохранятся, а резкость нет, поэтому null: «оставить как есть». */
+function scaleTo(srcW, srcH, wantW, wantH) {
+  if (!srcW || !srcH) return null;
+  let k = 1;
+  if (wantW) k = Math.min(k, wantW / srcW);
+  if (wantH) k = Math.min(k, wantH / srcH);
+  if (k >= 1) return null;
+  return { w: even(srcW * k), h: even(srcH * k) };
+}
+
+/* План удлинения: сколько раз ролик пройдёт целиком и где обрежется последний
+   повтор. Нужен, чтобы предупредить заранее — «повторится 2,5 раза» выглядит
+   в отчёте оператору совсем не так, как «повторится 3 раза». */
+function loopPlan(srcDur, targetDur) {
+  if (!srcDur || !targetDur || targetDur <= srcDur + 0.05) return null;
+  const copies = Math.ceil(targetDur / srcDur);
+  const lastCut = targetDur - srcDur * (copies - 1);
+  return { copies: copies, lastCut: lastCut, whole: Math.abs(lastCut - srcDur) < 0.05 };
+}
+
+/* Аргументы ffmpeg. Порядок важен: -stream_loop — опция входа, поэтому строго
+   до -i, а -t — опция выхода, строго после. */
+function buildArgs(o) {
+  const a = [];
+  if (loopPlan(o.srcDur, o.targetDur)) a.push('-stream_loop', '-1');
+  a.push('-i', o.inName);
+  if (o.targetDur) a.push('-t', String(Math.round(o.targetDur * 1000) / 1000));
+  if (o.scale) a.push('-vf', 'scale=' + o.scale.w + ':' + o.scale.h);
+
+  a.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p');
+  if (o.bitrateK) {
+    /* Операторы пишут в ТТ «не выше N» — значит нужен потолок, а не средний
+       битрейт: одного -b:v мало, он про среднее. */
+    a.push('-b:v', o.bitrateK + 'k', '-maxrate', o.bitrateK + 'k',
+           '-bufsize', (o.bitrateK * 2) + 'k');
+  } else {
+    a.push('-crf', '20');
+  }
+
+  if (o.mute) a.push('-an');
+  else a.push('-c:a', 'aac', '-b:a', '128k');
+
+  a.push('-movflags', '+faststart', '-y', o.outName);
+  return a;
+}
+
+/* Разбор того, что ffmpeg печатает на «-i файл» без выхода. Свойств у видео
+   больше, чем отдаёт браузерный <video> (битрейт и наличие звука он не знает),
+   а лишний проход всё равно нужен — файл после него уже в памяти ffmpeg. */
+function parseProbe(logText) {
+  const t = String(logText || '');
+  const out = { durSec: null, width: null, height: null, fps: null,
+                videoKbps: null, totalKbps: null, hasAudio: false };
+
+  const d = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(t);
+  if (d) out.durSec = (+d[1]) * 3600 + (+d[2]) * 60 + parseFloat(d[3]);
+
+  const tb = /Duration:[^\n]*?bitrate:\s*(\d+)\s*kb\/s/.exec(t);
+  if (tb) out.totalKbps = +tb[1];
+
+  const v = /Stream #\d+:\d+[^\n]*?: Video:[^\n]*/.exec(t);
+  if (v) {
+    const res = /,\s*(\d{2,5})x(\d{2,5})/.exec(v[0]);
+    if (res) { out.width = +res[1]; out.height = +res[2]; }
+    const br = /,\s*(\d+)\s*kb\/s/.exec(v[0]);
+    if (br) out.videoKbps = +br[1];
+    const fps = /,\s*([\d.]+)\s*fps/.exec(v[0]);
+    if (fps) out.fps = parseFloat(fps[1]);
+  }
+  out.hasAudio = /Stream #\d+:\d+[^\n]*?: Audio:/.test(t);
+  return out;
+}
+
+/* Дисклеймер: рамки заданы в пикселях кадра, а не экрана, — считать проценты
+   по картинке на странице нельзя, она масштабирована по ширине карточки.
+   Рамок может быть несколько (текст предупреждения и знак возраста — это два
+   разных объекта), «всего» тогда сумма. Пересечения рамок не вычитаются:
+   мерить один и тот же объект дважды смысла нет. */
+function disclaimer(boxes, frameW, frameH) {
+  const area = (frameW || 0) * (frameH || 0);
+  const rows = [];
+  let sumH = 0, sumArea = 0;
+
+  for (const b of boxes) {
+    const w = Math.round(b.w), h = Math.round(b.h);
+    const r = {
+      wPx: w, hPx: h,
+      wPct: frameW ? w / frameW * 100 : 0,
+      hPct: frameH ? h / frameH * 100 : 0,
+      areaPct: area ? w * h / area * 100 : 0
+    };
+    rows.push(r);
+    sumH += h;
+    sumArea += r.areaPct;
+  }
+
+  return {
+    rows: rows,
+    total: { hPx: sumH, hPct: frameH ? sumH / frameH * 100 : 0, areaPct: sumArea }
+  };
+}
+
+/* Имя выходного файла: «крео.mp4» + ['720x360', '5 с'] → «крео — 720x360 5 с.mp4».
+   Видно, что именно правили, и файл не затирает исходник в папке загрузок. */
+function outName(srcName, parts) {
+  const base = String(srcName || 'видео').replace(/\.[^.]*$/, '');
+  return base + ' — ' + (parts.length ? parts.join(' ') : 'правка') + '.mp4';
+}
+
+/* 5 → «5», 5.25 → «5,25»: запятая, потому что читают это в русских ТТ. */
+function fmtNum(x, digits) {
+  const n = Number(x);
+  if (!isFinite(n)) return '';
+  const s = n.toFixed(digits === undefined ? 2 : digits)
+             .replace(/\.?0+$/, '');
+  return s.replace('.', ',');
+}
+
+/* «ролик пройдёт 3 раз» читается как опечатка. forms — [1, 2-4, 5-20]. */
+function plural(n, forms) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return forms[2];
+  if (b > 1 && b < 5) return forms[1];
+  if (b === 1) return forms[0];
+  return forms[2];
+}
+
+root.VideoCore = {
+  even: even,
+  scaleTo: scaleTo,
+  loopPlan: loopPlan,
+  buildArgs: buildArgs,
+  parseProbe: parseProbe,
+  disclaimer: disclaimer,
+  outName: outName,
+  fmtNum: fmtNum,
+  plural: plural
+};
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.VideoCore;
+
+</script>
+<script>
+/* ============================================================================
    Объединение таблиц (порт merge.py, но без привязки к трём колонкам адресов).
 
    merge.py умел ровно одно: склеить файлы вида «Название / Широта / Долгота»,
@@ -4573,6 +4738,9 @@ const SAVINGS = {
   azimuth:   { on: 'пачка эфирок за месяц',
                manual: '30–40 мин', manualNote: 'сверять GID с инвентарём и вписывать азимут в каждую строку руками',
                tool: '1–2 сек на файл', toolNote: 'остальное содержимое файла не трогается' },
+  video:     { on: 'один ролик под требования оператора',
+               manual: '10–20 мин', manualNote: 'открыть монтажку, выставить длительность и размер, отрендерить, проверить битрейт',
+               tool: '1–2 мин', toolNote: 'вместе с перекодированием в браузере; замер дисклеймера — сразу' },
   reports:   { on: 'MasterAd: 7 файлов статистики, 290 000+ показов',
                manual: 'несколько итераций переписки', manualNote: 'раньше на каждую новую выгрузку — заново собирать факт, план и все 5 листов вручную',
                tool: '~20 сек', toolNote: 'замер: чтение статистики + сборка отчёта + упаковка со сжатием' }
@@ -4630,6 +4798,58 @@ techreq: {
         { t: 'Объединение таблиц', d: 'если АП пришла несколькими файлами — сначала склейте их' }
       ],
       cta: { open: true, demo: 'Собрать по демо-программе' } }
+  ]
+},
+
+/* ═══════════════════════════ правка видео под ТТ ══════════════════════ */
+video: {
+  title: 'Правка видео под ТТ',
+  letter: '▶',
+  slides: [
+    { kind: 'intro',
+      h: 'Подогнать ролик под требования оператора, не открывая монтажку',
+      lead: [
+        'Оператор прислал ТТ: 5 секунд, 720×360, не выше 2000 кбит/с, без звука. Инструмент делает ровно это — длительность, разрешение, битрейт и звуковую дорожку — и отдаёт готовый mp4.',
+        'Вторая половина — линейка: обвести на кадре предупреждение или знак возраста и увидеть высоту в пикселях, в процентах от кадра и долю площади.'
+      ],
+      gain: [
+        'Файл никуда не уходит: перекодирование идёт в самом браузере',
+        'Удлинение — повтором ролика: под статику это то, что нужно',
+        'Замер дисклеймера работает и без интернета'
+      ] },
+
+    { kind: 'steps',
+      h: 'Как переделать ролик',
+      items: [
+        { t: 'Положите видео', d: 'Любой формат, который читает ffmpeg: mp4, mov, avi, mkv, webm. Сразу под файлом появятся разрешение, длительность и битрейт — с чем сравнивать ТТ.' },
+        { t: 'Заполните только то, что меняете', d: 'Пустое поле значит «оставить как есть». Длительность меньше исходной обрежет конец, больше — повторит ролик. Разрешение вписывается в заданные габариты с сохранением пропорций.' },
+        { t: 'Сверьтесь с плашкой «что получится»', d: 'До запуска видно новое разрешение, число повторов и где обрежется последний. Ошибку в поле проще увидеть здесь, чем в готовом файле.' },
+        { t: 'Нажмите «Переделать» и скачайте', d: 'В первый раз инструмент подтянет ffmpeg — это 32 МБ, дальше он берётся из кэша браузера. Сам ролик кодируется секунды или минуты, смотря какой длины.' }
+      ] },
+
+    { kind: 'demo',
+      h: 'Пересчёт — настоящим кодом инструмента',
+      lead: ['Разрешение и план повторов считает ровно та же функция, что и при перекодировании. Поменяйте ролик и требования — цифры пересчитаются.'],
+      demo: 'videoScale' },
+
+    { kind: 'pits',
+      h: 'На чём спотыкаются',
+      items: [
+        { t: 'Удлинение повтором — это повтор, а не растягивание', d: 'Ролик проигрывается заново нужное число раз, последний повтор обрезается по длительности. Для статики это незаметно, для ролика с движением — заметно, смотрите на плашку.' },
+        { t: 'При удлинении звук тоже начнётся заново', d: 'Инструмент предупредит. Если звуковая дорожка не нужна по ТТ — отметьте «убрать звуковую дорожку», так честнее.' },
+        { t: 'Разрешение только вниз', d: 'Вписать 720×360 в 1920×1080 инструмент откажется: пропорции сохранить можно, резкость — нет. Пропорции при уменьшении сохраняются всегда, стороны округляются до чётных.' },
+        { t: 'Проценты дисклеймера считаются от кадра', d: 'Не от картинки на экране: она растянута по ширине карточки. Поэтому цифры не меняются, когда вы меняете размер окна.' },
+        { t: 'Норма площади — ваша, не наша', d: 'Поле «минимум площади по ТТ» пустое по умолчанию. Цифру берите из требований оператора или из закона по своей категории рекламы.' }
+      ] },
+
+    { kind: 'finish',
+      h: 'Что дальше',
+      lead: ['Какие именно длительность и разрешение нужны — знает сбор технических требований по той же адресной программе.'],
+      links: [
+        { t: 'Сбор технических требований', d: 'длительности роликов и ТТ операторов по АП' },
+        { t: 'Сортировка креативов', d: 'разложит готовые ролики по экранам' }
+      ],
+      cta: { open: true, demo: 'Попробовать замер на примере' } }
   ]
 },
 
@@ -5126,6 +5346,7 @@ const T = root.TTCore;
 const M = root.MergeCore;
 const AZ = root.AzimuthCore;
 const IC = root.InventoryCore;
+const VD = root.VideoCore;
 
 const $ = function (id) { return document.getElementById(id); };
 
@@ -5858,6 +6079,52 @@ DEMOS.reportsColumns = function (host) {
   $('repOut').innerHTML = '<div class="g-out-k">Столбец «№» (новый, сюда не входит) встаёт в A — всё, что было ' +
     'ДО «Комиссия платформы», сдвигается на 1 вправо; всё, что ПОСЛЕ — остаётся на месте (сдвиги от удаления ' +
     'и от вставки гасят друг друга). Стиль каждой ячейки при этом не пересобирается — переезжает целиком.</div>';
+};
+
+/* ── видео: пересчёт разрешения и план удлинения настоящим кодом ── */
+DEMOS.videoScale = function (host) {
+  host.innerHTML =
+    '<div class="g-demo-row">' +
+      '<div class="field"><label>Ролик</label><select id="vSrc">' +
+        '<option value="1920x1080x10">1920×1080, 10 с</option>' +
+        '<option value="720x360x5">720×360, 5 с</option>' +
+        '<option value="1080x1920x15">1080×1920, 15 с</option>' +
+      '</select></div>' +
+      '<div class="field"><label>Вписать в ширину</label><select id="vW">' +
+        '<option>1280</option><option selected>720</option><option>640</option><option>2560</option>' +
+      '</select></div>' +
+      '<div class="field"><label>Нужная длительность, с</label><select id="vDur">' +
+        '<option>5</option><option selected>25</option><option>30</option>' +
+      '</select></div>' +
+    '</div>' +
+    '<div class="g-demo-out" id="vOut"></div>';
+
+  function upd() {
+    const p = $('vSrc').value.split('x');
+    const sw = +p[0], sh = +p[1], sd = +p[2];
+    const scale = VD.scaleTo(sw, sh, +$('vW').value, null);
+    const loop = VD.loopPlan(sd, +$('vDur').value);
+
+    const res = scale
+      ? '<div class="g-out-big">' + scale.w + '×' + scale.h + '</div>' +
+        '<div class="g-out-k">Пропорции те же, стороны округлены до чётных — иначе H.264 ' +
+        'не возьмёт кадр. Увеличивать инструмент не станет.</div>'
+      : '<div class="g-out-none">разрешение оставим как есть</div>' +
+        '<div class="g-out-k">Заданная ширина не меньше исходной: растянуть можно, но резче ' +
+        'ролик от этого не станет.</div>';
+
+    const dur = loop
+      ? '<div class="g-out-k" style="margin-top:9px">Длительность ' + sd + ' → ' + $('vDur').value +
+        ' с: ролик пройдёт ' + loop.copies + ' ' + VD.plural(loop.copies, ['раз', 'раза', 'раз']) +
+        (loop.whole ? ' целиком.' : ', последний повтор обрежется на ' + VD.fmtNum(loop.lastCut, 2) + ' с.') +
+        '</div>'
+      : '<div class="g-out-k" style="margin-top:9px">Длительность ' + sd + ' → ' + $('vDur').value +
+        ' с: удлинять не нужно, лишнее просто обрежется с конца.</div>';
+
+    $('vOut').innerHTML = res + dur;
+  }
+  ['vSrc', 'vW', 'vDur'].forEach(function (id) { $(id).addEventListener('change', upd); });
+  upd();
 };
 
 /* ════════════════════════════════ запуск ════════════════════════════════ */
