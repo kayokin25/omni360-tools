@@ -375,10 +375,10 @@ root.OmniTheme = {
     <div class="section-label">Ролик</div>
     <div class="drop" id="drop">
       <div class="icon">🎬</div>
-      <div class="main" id="dropMain">Выберите видео или перетащите сюда</div>
-      <div class="sub" id="dropSub">mp4, mov, avi, mkv, webm — что угодно, что примет ffmpeg</div>
+      <div class="main" id="dropMain">Выберите видео или картинку — или перетащите сюда</div>
+      <div class="sub" id="dropSub">mp4, mov, avi, mkv, webm, а также jpg и png — из картинки соберём ролик</div>
     </div>
-    <input type="file" id="file" accept="video/*">
+    <input type="file" id="file" accept="video/*,image/*">
 
     <div class="tiles" id="srcTiles" style="display:none"></div>
 
@@ -1460,14 +1460,37 @@ function loopPlan(srcDur, targetDur) {
   return { copies: copies, lastCut: lastCut, whole: Math.abs(lastCut - srcDur) < 0.05 };
 }
 
-/* Аргументы ffmpeg. Порядок важен: -stream_loop — опция входа, поэтому строго
-   до -i, а -t — опция выхода, строго после. */
+/* Кадров в секунду у ролика из картинки: меньше 25 операторы не берут, больше
+   для неподвижного кадра бессмысленно. */
+const STILL_FPS = 25;
+/* Сколько секунд крутить картинку, если длительность не задали. */
+const STILL_DEFAULT_SEC = 10;
+
+/* Аргументы ffmpeg. Порядок важен: -stream_loop и -loop — опции входа, поэтому
+   строго до -i, а -t — опция выхода, строго после.
+
+   still: вход — неподвижная картинка. Тогда вместо повторов ролика крутится
+   один кадр (-loop 1), длительность обязательна (иначе ffmpeg кодирует
+   бесконечно), звука нет по определению. Нужно это затем, что часть
+   операторов не принимает изображения вовсе: Russ Outdoor на десятисекундном
+   билборде берёт только видео (Катя, 17.09). */
 function buildArgs(o) {
   const a = [];
-  if (loopPlan(o.srcDur, o.targetDur)) a.push('-stream_loop', '-1');
+  const still = !!o.still;
+  const dur = still
+    ? (o.targetDur || STILL_DEFAULT_SEC)
+    : o.targetDur;
+
+  if (still) a.push('-loop', '1');
+  else if (loopPlan(o.srcDur, o.targetDur)) a.push('-stream_loop', '-1');
   a.push('-i', o.inName);
-  if (o.targetDur) a.push('-t', String(Math.round(o.targetDur * 1000) / 1000));
+  if (dur) a.push('-t', String(Math.round(dur * 1000) / 1000));
   if (o.scale) a.push('-vf', 'scale=' + o.scale.w + ':' + o.scale.h);
+  /* Картинке размер никто не подбирал под кодировщик: 601×476 роняет libx264
+     («width not divisible by 2»). Округляем стороны вниз до чётных, когда
+     своего масштаба не задали. */
+  else if (still) a.push('-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2');
+  if (still) a.push('-r', String(o.fps || STILL_FPS));
 
   a.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p');
   if (o.bitrateK) {
@@ -1479,7 +1502,7 @@ function buildArgs(o) {
     a.push('-crf', '20');
   }
 
-  if (o.mute) a.push('-an');
+  if (still || o.mute) a.push('-an');
   else a.push('-c:a', 'aac', '-b:a', '128k');
 
   a.push('-movflags', '+faststart', '-y', o.outName);
@@ -1568,6 +1591,8 @@ function plural(n, forms) {
 }
 
 root.VideoCore = {
+  STILL_FPS: STILL_FPS,
+  STILL_DEFAULT_SEC: STILL_DEFAULT_SEC,
   even: even,
   scaleTo: scaleTo,
   loopPlan: loopPlan,
@@ -1780,19 +1805,41 @@ function videoMeta(file) {
   });
 }
 
+/* Размеры картинки: у неё нет ни длительности, ни звука — только кадр, из
+   которого дальше соберётся ролик. */
+function imageMeta(file) {
+  return new Promise(function (ok) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = function () { ok({ w: img.naturalWidth, h: img.naturalHeight, dur: null, url: url, still: true }); };
+    img.onerror = function () { URL.revokeObjectURL(url); ok(null); };
+    img.src = url;
+  });
+}
+
+function isStill(file) {
+  return /^image\//.test(file.type) || /\.(jpe?g|png|webp|bmp)$/i.test(file.name);
+}
+
 bindDrop('drop', 'file', async function (f) {
   srcFile = f;
   if (srcMeta && srcMeta.url) URL.revokeObjectURL(srcMeta.url);
-  srcMeta = await videoMeta(f);
+  srcMeta = isStill(f) ? await imageMeta(f) : await videoMeta(f);
 
   $('drop').classList.add('filled');
   $('dropMain').textContent = f.name;
   $('dropSub').textContent = kb(f.size) + (srcMeta
-    ? ' — ' + srcMeta.w + '×' + srcMeta.h + ', ' + V.fmtNum(srcMeta.dur, 2) + ' с'
+    ? ' — ' + srcMeta.w + '×' + srcMeta.h + (srcMeta.still ? ', картинка' : ', ' + V.fmtNum(srcMeta.dur, 2) + ' с')
     : ' — метаданные прочитаем при запуске');
   $('go').disabled = false;
 
-  if (srcMeta) {
+  if (srcMeta && srcMeta.still) {
+    $('srcTiles').style.display = '';
+    $('srcTiles').innerHTML =
+      tile(srcMeta.w + '×' + srcMeta.h, 'разрешение') +
+      tile('картинка', 'источник') +
+      tile(kb(f.size), 'размер');
+  } else if (srcMeta) {
     $('srcTiles').style.display = '';
     $('srcTiles').innerHTML =
       tile(srcMeta.w + '×' + srcMeta.h, 'разрешение') +
@@ -1821,6 +1868,18 @@ function showPlan() {
   if (!srcFile) { $('plan').innerHTML = ''; return; }
   const p = planParts();
   const lines = [];
+
+  /* Картинка: ролика ещё нет, поэтому про повторы и звук говорить нечего —
+     зато важно сказать, сколько секунд будет крутиться кадр. */
+  if (srcMeta && srcMeta.still) {
+    const sec = p.target || V.STILL_DEFAULT_SEC;
+    lines.push('Из картинки соберём ролик: <b>' + V.fmtNum(sec, 2) + ' с</b>, ' +
+               V.STILL_FPS + ' кадров в секунду, без звука');
+    if (p.scale) lines.push('Разрешение: ' + srcMeta.w + '×' + srcMeta.h + ' → <b>' + p.scale.w + '×' + p.scale.h + '</b>');
+    if (!p.target) lines.push('Длительность не задана — возьмём ' + V.STILL_DEFAULT_SEC + ' с');
+    $('plan').innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join('');
+    return;
+  }
 
   if (srcMeta && p.scale) lines.push('Разрешение: ' + srcMeta.w + '×' + srcMeta.h + ' → <b>' + p.scale.w + '×' + p.scale.h + '</b>');
   else if (srcMeta && (num('wantW') || num('wantH'))) lines.push('Разрешение не меняем: заданный размер не меньше исходного');
@@ -1917,13 +1976,15 @@ $('go').addEventListener('click', async function () {
     const parts = [];
     if (scale) parts.push(scale.w + 'x' + scale.h);
     if (target) parts.push(V.fmtNum(target, 2) + ' с');
+    else if (srcMeta && srcMeta.still) parts.push(V.STILL_DEFAULT_SEC + ' с');
     if (bitrateK) parts.push(bitrateK + ' кбит');   /* косая в имени файла нельзя */
     if (mute) parts.push('без звука');
     outFileName = V.outName(srcFile.name, parts);
 
+    const still = !!(srcMeta && srcMeta.still);
     const args = V.buildArgs({
       inName: inName, outName: 'out.mp4', srcDur: srcDur, targetDur: target,
-      scale: scale, mute: mute, bitrateK: bitrateK
+      scale: scale, mute: mute, bitrateK: bitrateK, still: still
     });
     log('ffmpeg ' + args.join(' '));
 
@@ -1943,9 +2004,13 @@ $('go').addEventListener('click', async function () {
     progress(false);
     log('Готово за ' + V.fmtNum((Date.now() - started) / 1000, 1) + ' с: ' + kb(outBlob.size), 'ok');
 
-    const outDur = target || srcDur;
+    const outDur = target || srcDur || (srcMeta && srcMeta.still ? V.STILL_DEFAULT_SEC : null);
+    /* У картинки без своего масштаба стороны округляются до чётных уже внутри
+       ffmpeg — показываем то, что получилось, а не исходные 601×476. */
+    const outW = scale ? scale.w : (still && srcW ? V.even(srcW - 1) : srcW);
+    const outH = scale ? scale.h : (still && srcH ? V.even(srcH - 1) : srcH);
     $('outTiles').innerHTML =
-      tile((scale ? scale.w + '×' + scale.h : (srcW && srcH ? srcW + '×' + srcH : '—')), 'разрешение', 'good') +
+      tile((outW && outH ? outW + '×' + outH : '—'), 'разрешение', 'good') +
       tile(outDur ? V.fmtNum(outDur, 2) + ' с' : '—', 'длительность') +
       tile(kb(outBlob.size), 'размер') +
       tile(outDur ? Math.round(outBlob.size * 8 / 1024 / outDur) + ' кбит/с' : '—', 'битрейт файла') +
@@ -1974,7 +2039,7 @@ $('reset').addEventListener('click', function () {
   if (srcMeta && srcMeta.url) URL.revokeObjectURL(srcMeta.url);
   srcMeta = null;
   $('drop').classList.remove('filled');
-  $('dropMain').textContent = 'Выберите видео или перетащите сюда';
+  $('dropMain').textContent = 'Выберите видео или картинку — или перетащите сюда';
   $('dropSub').textContent = 'mp4, mov, avi, mkv, webm — что угодно, что примет ffmpeg';
   $('srcTiles').style.display = 'none';
   $('go').disabled = true;
