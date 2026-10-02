@@ -17,6 +17,12 @@
   font-weight:700; text-transform:uppercase; background:var(--warn-bg); color:var(--warn-text); }
 .mode-panel { display:none; }
 .mode-panel.on { display:block; }
+textarea {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--input-line);
+  border-radius: 10px; color: var(--text); font-size: 14px; padding: 10px 13px; outline: none;
+  font-family: inherit; resize: vertical; transition: border-color .15s;
+}
+textarea:focus { border-color: var(--accent); }
 </style>
 <script>
 /*__INJECT:theme.js__*/
@@ -43,6 +49,7 @@
   <div class="modes" id="modes">
     <button class="mode-btn on" data-mode="inventory">Инвенто</button>
     <button class="mode-btn" data-mode="masterad">MasterAd</button>
+    <button class="mode-btn" data-mode="ssk">ССК</button>
   </div>
 
   <!-- ══════════════════════════ ИНВЕНТО ══════════════════════════ -->
@@ -172,6 +179,76 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════ ССК ══════════════════════════ -->
+  <div class="mode-panel" id="panel-ssk">
+
+    <p class="subtitle">
+      Отчёт об оказанных услугах для ССК — Word и PDF: шапка, список регионов, по каждому экрану
+      адрес из АП и одно фото — самый ранний снимок этого GID в архиве.
+    </p>
+
+    <div class="section-label">Шапка отчёта</div>
+    <div class="grid2">
+      <div class="field"><label>УПД №</label><input type="text" id="sskUpdNo" placeholder="204"></div>
+      <div class="field"><label>Дата УПД</label><input type="date" id="sskUpdDate"></div>
+    </div>
+    <div class="field"><label>Заказчик</label><input type="text" id="sskCustomer" placeholder="ООО «МЕДИАЛАЙФ-РЕГИОНЫ»"></div>
+    <div class="field"><label>Исполнитель</label><input type="text" id="sskContractor" placeholder="ООО «РТ-Сервис»"></div>
+    <div class="grid2">
+      <div class="field"><label>Договор №</label><input type="text" id="sskContractNo" placeholder="РТС-113"></div>
+      <div class="field"><label>Дата договора</label><input type="date" id="sskContractDate"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Период с</label><input type="date" id="sskFrom"></div>
+      <div class="field"><label>Период по</label><input type="date" id="sskTo"></div>
+    </div>
+    <div class="field"><label>Наименование объекта</label><input type="text" id="sskObject" placeholder="Все сезоны"></div>
+    <div class="field"><label>Наименование работ (услуг)</label><textarea id="sskWorks" rows="3"></textarea>
+      <div class="hint">Подставляется по названию объекта; можно поправить вручную.</div></div>
+
+    <div class="section-label" style="margin-top:20px">Адресная программа (.xlsx)</div>
+    <div class="drop" id="sskDropAp">
+      <div class="icon">📋</div>
+      <div class="main" id="sskApMain">Файл .xlsx со столбцами GID, Город, Адрес, Сторона</div>
+      <div class="sub" id="sskApSub">«Экраны» со страницы РК или лист «АП» из выгрузки МП</div>
+    </div>
+    <input type="file" id="sskFileAp" accept=".xlsx,.xlsm">
+
+    <div class="section-label" style="margin-top:20px">Фото (.zip или снимки)</div>
+    <div class="drop" id="sskDropPh">
+      <div class="icon">📷</div>
+      <div class="main" id="sskPhMain">Архив фотоотчёта или сами снимки</div>
+      <div class="sub" id="sskPhSub">имя снимка начинается с GID — так их называет DSP</div>
+    </div>
+    <input type="file" id="sskFilePh" accept=".zip,.jpg,.jpeg,.png,.webp" multiple>
+
+    <label style="display:flex;align-items:center;gap:8px;margin:16px 0 0;cursor:pointer">
+      <input type="checkbox" id="sskPlaceholders" style="width:auto">
+      <span>Экранам без фото — случайное фото из этого же отчёта с подписью «Иллюстративное фото…»</span>
+    </label>
+
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="sskGo" disabled>Собрать отчёт</button>
+    </div>
+
+    <div class="progress" id="sskProg">
+      <div class="bar" id="sskBar"><i></i></div>
+      <div class="progress-text" id="sskProgText"></div>
+    </div>
+    <div class="log" id="sskLog"></div>
+
+    <div class="results" id="sskResults">
+      <div class="divider"></div>
+      <div class="section-label">Результат</div>
+      <div class="tiles" id="sskTiles"></div>
+      <div id="sskNotes"></div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn" id="sskDlDocx">Скачать Word</button>
+        <button class="btn" id="sskDlPdf">Скачать PDF</button>
+      </div>
+    </div>
+  </div>
+
   <div class="footer">omni360 · отдел по ведению РК</div>
 </div>
 </div>
@@ -186,6 +263,15 @@
 /*__INJECT:masterad-core.js__*/
 </script>
 <script>
+/*__INJECT:city-regions.js__*/
+</script>
+<script>
+/*__INJECT:ssk-fonts.js__*/
+</script>
+<script>
+/*__INJECT:ssk-core.js__*/
+</script>
+<script>
 (function () {
 'use strict';
 const L = window.OmniLib, I = window.InventoryCore, M = window.MasterAdCore;
@@ -196,7 +282,7 @@ const $ = function (id) { return document.getElementById(id); };
   btn.addEventListener('click', function () {
     const mode = btn.dataset.mode;
     [...$('modes').children].forEach(function (b) { b.classList.toggle('on', b === btn); });
-    ['inventory', 'masterad'].forEach(function (m) {
+    ['inventory', 'masterad', 'ssk'].forEach(function (m) {
       $('panel-' + m).classList.toggle('on', m === mode);
     });
   });
@@ -612,6 +698,143 @@ $('maReset').addEventListener('click', function () {
   $('maReset').style.display = 'none';
   updateMaGo();
 });
+
+/* ══════════════════════════ ССК ══════════════════════════ */
+const SK = window.SskCore;
+let sskAp = null, sskPhotos = null, sskOut = null, sskWorksTouched = false;
+
+function sskWorksSync() {
+  if (!sskWorksTouched) $('sskWorks').value = SK.defaultWorks($('sskObject').value.trim());
+}
+$('sskObject').addEventListener('input', sskWorksSync);
+$('sskWorks').addEventListener('input', function () { sskWorksTouched = true; });
+sskWorksSync();
+
+function sskDrop(dropId, inputId, onFiles) {
+  const d = $(dropId), inp = $(inputId);
+  d.addEventListener('click', function () { inp.click(); });
+  d.addEventListener('dragover', function (e) { e.preventDefault(); d.classList.add('over'); });
+  d.addEventListener('dragleave', function () { d.classList.remove('over'); });
+  d.addEventListener('drop', function (e) {
+    e.preventDefault(); d.classList.remove('over');
+    if (e.dataTransfer.files && e.dataTransfer.files.length) onFiles([].slice.call(e.dataTransfer.files));
+  });
+  inp.addEventListener('change', function () { if (inp.files && inp.files.length) onFiles([].slice.call(inp.files)); });
+}
+sskDrop('sskDropAp', 'sskFileAp', function (files) {
+  const f = files.find(function (x) { return /\.(xlsx|xlsm)$/i.test(x.name); });
+  if (!f) { sskLog('Нужен файл .xlsx', 'err'); return; }
+  sskAp = f;
+  $('sskDropAp').classList.add('filled');
+  $('sskApMain').textContent = f.name;
+  $('sskApSub').textContent = fmtSizeMa(f.size);
+  updateSskGo();
+});
+sskDrop('sskDropPh', 'sskFilePh', function (files) {
+  const zip = files.find(function (x) { return /\.zip$/i.test(x.name); });
+  const imgs = files.filter(function (x) { return /\.(jpe?g|png|webp)$/i.test(x.name); });
+  if (!zip && !imgs.length) { sskLog('Нужен .zip или снимки .jpg/.png', 'err'); return; }
+  sskPhotos = zip ? { zip: zip } : { images: imgs };
+  $('sskDropPh').classList.add('filled');
+  $('sskPhMain').textContent = zip ? zip.name : imgs.length + ' снимков';
+  $('sskPhSub').textContent = fmtSizeMa(zip ? zip.size : imgs.reduce(function (a, f) { return a + f.size; }, 0));
+  updateSskGo();
+});
+function updateSskGo() { $('sskGo').disabled = !(sskAp && sskPhotos); }
+
+function sskLog(msg, kind) {
+  const el = $('sskLog');
+  el.classList.add('on');
+  const tag = kind === 'ok' ? 'b' : kind === 'warn' ? 'i' : kind === 'err' ? 's' : 'span';
+  el.innerHTML += '<' + tag + '>' + esc(msg) + '</' + tag + '>\n';
+  el.scrollTop = el.scrollHeight;
+}
+function sskProgress(on, text, frac) {
+  $('sskProg').classList.toggle('on', !!on);
+  if (text !== undefined) $('sskProgText').textContent = text;
+  if (frac !== undefined && frac !== null) $('sskBar').firstElementChild.style.width = Math.round(Math.min(1, frac) * 100) + '%';
+}
+function sskHeader() {
+  const v = function (id) { return $(id).value.trim(); };
+  return { updNo: v('sskUpdNo'), updDate: v('sskUpdDate'), customer: v('sskCustomer'), contractor: v('sskContractor'),
+    contractNo: v('sskContractNo'), contractDate: v('sskContractDate'), periodFrom: v('sskFrom'), periodTo: v('sskTo'),
+    objectName: v('sskObject'), works: v('sskWorks') };
+}
+const IMG_TYPE = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+
+$('sskGo').addEventListener('click', async function () {
+  $('sskGo').disabled = true;
+  $('sskResults').classList.remove('on');
+  $('sskLog').innerHTML = ''; $('sskLog').classList.remove('on');
+  sskProgress(true, 'Читаю АП…', 0);
+  try {
+    const screens = await SK.readAp(L.blobSource(sskAp));
+    sskLog('Экранов в АП: ' + screens.length, 'ok');
+
+    let names, blobOf;
+    if (sskPhotos.zip) {
+      const zip = await L.zipOpen(L.blobSource(sskPhotos.zip));
+      const byName = new Map(zip.entries.filter(function (e) { return !e.isDir; }).map(function (e) { return [e.name, e]; }));
+      names = [...byName.keys()];
+      blobOf = async function (n) {
+        const ext = n.split('.').pop().toLowerCase();
+        return new Blob([await L.zipRead(zip, byName.get(n))], { type: IMG_TYPE[ext] || '' });
+      };
+    } else {
+      const byName = new Map(sskPhotos.images.map(function (f) { return [f.name, f]; }));
+      names = [...byName.keys()];
+      blobOf = async function (n) { return byName.get(n); };
+    }
+    const idx = SK.matchPhotos(names, screens);
+    const photos = new Map();
+    const queue = [...idx];
+    let done = 0;
+    // По четыре сразу: декодирование PNG — самое долгое место.
+    await Promise.all([0, 1, 2, 3].map(async function () {
+      for (let job; (job = queue.shift());) {
+        const gid = job[0], name = job[1][0];
+        try { photos.set(gid, await SK.prepPhoto(await blobOf(name), name)); }
+        catch (e) { sskLog(name + ': не открылось — ' + e.message, 'warn'); }
+        sskProgress(true, 'Готовлю фото ' + (++done) + ' из ' + idx.size, done / idx.size);
+      }
+    }));
+
+    const model = SK.buildModel(screens, function (g) { return photos.get(g) || null; },
+      { placeholders: $('sskPlaceholders').checked });
+    const blocks = SK.documentBlocks(model, sskHeader());
+    sskProgress(true, 'Собираю Word и PDF…', null);
+    const docx = SK.buildDocx(blocks);
+    const pdf = await SK.buildPdf(blocks, window.SskFonts);
+    sskOut = { docx: docx, pdf: pdf.blob };
+    sskProgress(false);
+
+    $('sskTiles').innerHTML =
+      tile(screens.length, 'экранов', 'good') +
+      tile(model.withPhoto, 'с фото') +
+      tile(model.missing.length, 'без фото', model.missing.length ? 'warn' : '') +
+      (model.placeholders ? tile(model.placeholders, 'плейсхолдеров') : '') +
+      tile(pdf.pages, 'страниц PDF');
+    $('sskNotes').innerHTML = model.missing.length
+      ? '<div class="note ' + (model.placeholders ? 'info' : 'warn') + '">' +
+        (model.placeholders ? 'Плейсхолдеры стоят у экранов без фото:' : 'Нет фото — в отчёте стоят с пометкой «фотоотчёт не предоставлен»:') +
+        '<br>' + model.missing.map(function (s) { return esc(s.gid + ' — ' + SK.addressLine(s)); }).join('<br>') + '</div>'
+      : '';
+    $('sskResults').classList.add('on');
+  } catch (e) {
+    sskProgress(false);
+    sskLog('Ошибка: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    updateSskGo();
+  }
+});
+
+function sskName(ext) {
+  const obj = $('sskObject').value.trim();
+  return ('Отчет ССК' + (obj ? '_' + obj : '')).replace(/[\\/:*?"<>|]+/g, '-') + '.' + ext;
+}
+$('sskDlDocx').addEventListener('click', function () { if (sskOut) L.download(sskOut.docx, sskName('docx')); });
+$('sskDlPdf').addEventListener('click', function () { if (sskOut) L.download(sskOut.pdf, sskName('pdf')); });
 
 })();
 </script>
