@@ -431,7 +431,7 @@ root.OmniTheme = {
   <div class="mode-panel" id="panel-masterad">
 
     <p class="subtitle">
-      Факт только по «УСПЕШНЫМ» показам, контакты — из столбца OTS (с заменой нулей по
+      Факт только по «УСПЕШНЫМ» показам, контакты — из столбца «OTS total» (с заменой нулей по
       таблице ниже), план — из МП с пересчётом на сутки. На выходе — 5 листов: свод /
       Отчет / свод по минутам / Отчет по минутам / Лист2, как в отчётах клиенту.
     </p>
@@ -2019,7 +2019,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = globalThis
    этим же отчётом «Яндекс Go Вместе»):
      - факт — только строки со статусом «УСПЕШНЫЙ» (отклонённые выбрасываются);
      - «Количество выходов» = 1 на строку (каждая строка — один показ);
-     - «Количество контактов» = столбец OTS; там, где экран передаёт 0,
+     - «Количество контактов» = столбец «OTS total» (старые выгрузки без него —
+       столбец OTS); там, где экран передаёт 0,
        0 заменяется на постоянное значение по паре (город, тип конструкции) —
        таблица замен приходит от пользователя, единой для всех кампаний нет;
      - «Потрачено средств» = «Стоимость показа клиента», а если такого столбца
@@ -2119,6 +2120,29 @@ function colIndexByHeader(headerRow, names) {
 
 const REQUIRED_HEADERS = ['GID', 'Результат запроса'];
 
+/* Контакты берём из «OTS total», а не из «OTS»: «OTS» экраны заполняют
+   в одном показе из двадцати, остальное — нули (Катя, 29.09).
+   Столбцов «OTS total» в выгрузке ДВА: первый всегда пустой, данные — в
+   последнем. Поэтому не первый по имени, а тот, где заполнено больше.
+   В старых выгрузках «OTS total» нет вовсе — тогда по-прежнему «OTS».
+   Фикс жил только в копии DSP и 08.10 был затёрт перезабором — теперь он
+   здесь, в исходнике. */
+function otsColumn(rows, header, dataStart) {
+  const names = ['ots total', 'total ots'];
+  const cand = [];
+  header.forEach(function (h, i) { if (names.indexOf(normKey(h)) >= 0) cand.push(i); });
+  let best = -1, bestFilled = 0;
+  for (const i of cand) {
+    let filled = 0;
+    for (let r = dataStart; r < rows.length; r++) {
+      const v = (rows[r] || [])[i];
+      if (v !== null && v !== undefined && v !== '') filled++;
+    }
+    if (filled > bestFilled) { best = i; bestFilled = filled; }
+  }
+  return best >= 0 ? best : colIndexByHeader(header, ['OTS']);
+}
+
 async function readOneStatSheet(source, name, opt) {
   const wb = await L.readXlsx(source);
   const sheet = wb.sheets[0];
@@ -2131,7 +2155,7 @@ async function readOneStatSheet(source, name, opt) {
     timeLocal: colIndexByHeader(header, ['Местное время показа', 'Время показа']),
     city: colIndexByHeader(header, ['Город']),
     status: colIndexByHeader(header, ['Результат запроса', 'Результат']),
-    ots: colIndexByHeader(header, ['OTS']),
+    ots: otsColumn(sheet.rows, header, headerIdx + 1),
     costClient: colIndexByHeader(header, ['Стоимость показа клиента']),
     costOp: colIndexByHeader(header, ['Стоимость успешного показа']),
     gid: colIndexByHeader(header, ['GID']),
