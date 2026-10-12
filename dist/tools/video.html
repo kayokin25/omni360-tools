@@ -400,7 +400,7 @@ root.OmniTheme = {
           <input type="number" id="wantW" min="2" step="2" placeholder="ширина">
           <input type="number" id="wantH" min="2" step="2" placeholder="высота">
         </div>
-        <div class="hint">Пропорции сохраняются, можно задать что-то одно. Увеличивать не станем.</div>
+        <div class="hint">Пропорции не меняются: задайте одну сторону, вторая подставится сама. Увеличивать не станем.</div>
       </div>
     </div>
 
@@ -1849,12 +1849,27 @@ bindDrop('drop', 'file', async function (f) {
   } else {
     $('srcTiles').style.display = 'none';
   }
+  pairSide(num('wantW') ? 'wantW' : 'wantH');
   showPlan();
 });
 
 /* ── что получится: считаем до запуска, чтобы не гадать по результату ── */
-['dur', 'bitrate', 'wantW', 'wantH'].forEach(function (id) {
+['dur', 'bitrate'].forEach(function (id) {
   $(id).addEventListener('input', showPlan);
+});
+
+/* Соотношение сторон менять нельзя: ffmpeg вписывает ролик в рамку с
+   исходными пропорциями, и 960×720 из 1440×720 превращалось в 960×480.
+   Поэтому вторая сторона всегда считается из первой — задать пару,
+   которая противоречит исходнику, не получится. */
+function pairSide(from) {
+  if (!srcMeta || !srcMeta.w || !srcMeta.h) return;
+  const v = num(from);
+  const to = from === 'wantW' ? 'wantH' : 'wantW';
+  $(to).value = v ? V.even(from === 'wantW' ? v * srcMeta.h / srcMeta.w : v * srcMeta.w / srcMeta.h) : '';
+}
+['wantW', 'wantH'].forEach(function (id) {
+  $(id).addEventListener('input', function () { pairSide(id); showPlan(); });
 });
 $('mute').addEventListener('change', showPlan);
 
@@ -1868,6 +1883,10 @@ function showPlan() {
   if (!srcFile) { $('plan').innerHTML = ''; return; }
   const p = planParts();
   const lines = [];
+  const ratioWarn = srcMeta && srcMeta.w && (num('wantW') || num('wantH'))
+    ? '<div class="note warn">Соотношение сторон останется как у исходника — ' + srcMeta.w + '×' + srcMeta.h +
+      '. Если в ТТ другие пропорции, этот ролик не подойдёт: нужен исходник в пропорциях из ТТ.</div>'
+    : '';
 
   /* Картинка: ролика ещё нет, поэтому про повторы и звук говорить нечего —
      зато важно сказать, сколько секунд будет крутиться кадр. */
@@ -1877,7 +1896,7 @@ function showPlan() {
                V.STILL_FPS + ' кадров в секунду, без звука');
     if (p.scale) lines.push('Разрешение: ' + srcMeta.w + '×' + srcMeta.h + ' → <b>' + p.scale.w + '×' + p.scale.h + '</b>');
     if (!p.target) lines.push('Длительность не задана — возьмём ' + V.STILL_DEFAULT_SEC + ' с');
-    $('plan').innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join('');
+    $('plan').innerHTML = lines.map(function (l) { return '<div>' + l + '</div>'; }).join('') + ratioWarn;
     return;
   }
 
@@ -1904,6 +1923,8 @@ function showPlan() {
     ? '<div class="note info">' + lines.join('<br>') + '</div>'
     : '<div class="note info">Ничего не задано — ролик просто перекодируется в mp4 (H.264). ' +
       'Заполните хотя бы одно поле выше.</div>';
+
+  html += ratioWarn;
 
   if (srcMeta && p.target && V.loopPlan(srcMeta.dur, p.target) && !p.mute) {
     html += '<div class="note warn">Удлиняем повтором, а звук не убран — он тоже начнётся заново ' +
