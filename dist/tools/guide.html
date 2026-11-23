@@ -4493,6 +4493,39 @@ async function patchFile(file, options) {
   const dataStart = mergedHeaderBottom(sheetXml, headerRow) + 1;
   const dataEnd = maxRow;
 
+  // №111: вертикальное объединение в строках данных (адрес на стороны A/B: B4:B5)
+  // после перестановки по GID разъезжается, диапазон выбрасывается, а значение
+  // остаётся только в верхней ячейке. Поэтому текст ячейки-мастера копируем в каждую
+  // строку диапазона, а вместо диапазона пишем построчные мёрджи по ширине
+  // (B5:C5, B6:C6) — они переезжают со строкой. Только внутри таблицы (у всех строк
+  // диапазона есть GID) и только текст: число в копии задвоило бы показы, а примечание
+  // под таблицей копировать незачем — там старое поведение.
+  const expanded = new Set();  // тексты объединений, которые размножены
+  const perRow = [];           // [c1, c2, строка] — ширина мёрджа на каждую сторону
+  const dmRe = /<mergeCell\b[^>]*\bref="([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)"[^>]*\/>/g;
+  let dm;
+  while ((dm = dmRe.exec(sheetXml))) {
+    const c1 = L.colToIndex(dm[1]), c2 = L.colToIndex(dm[3]);
+    const r1 = parseInt(dm[2], 10), r2 = parseInt(dm[4], 10);
+    const master = r1 >= dataStart && r2 > r1 && rowByNum.get(r1) ? cellInRow(rowByNum.get(r1), c1) : null;
+    if (!master || !/\bt="(s|inlineStr|str)"/.test(master.attrs)) continue;
+    const span = [];
+    for (let r = r1; r <= r2; r++) span.push(rowByNum.get(r));
+    if (span.some(function (row) {
+      if (!row) return true;
+      const g = cellValue(cellInRow(row, gidCol0), shared);
+      return g === null || g === undefined;
+    })) continue;
+    expanded.add(dm[0]);
+    span.forEach(function (row, i) {
+      if (c2 > c1) perRow.push([c1, c2, r1 + i]);
+      if (i === 0) return;
+      const k = row.cells.findIndex(function (c) { return c.col === c1; });
+      if (k >= 0) row.cells[k] = master; else row.cells.push(master); // порядок столбцов — при сборке строки
+    });
+  }
+
+
   // ── порядок строк данных: показанные (сорт по GID) → непоказанные (как были) ──
   const nonzero = [], zero = [];
   for (let r = dataStart; r <= dataEnd; r++) {
@@ -4621,19 +4654,23 @@ async function patchFile(file, options) {
     if (dataStart > headerRow + 1) {
       refs.push(L.indexToCol(0) + headerRow + ':' + L.indexToCol(0) + (dataStart - 1));
     }
+    const ranges = perRow.map(function (p) { return [p[0], p[1], p[2], p[2]]; });
     const mcRe = /<mergeCell\b[^>]*\bref="([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)"[^>]*\/>/g;
     let mc;
     while ((mc = mcRe.exec(mcM[1]))) {
-      const r1 = parseInt(mc[2], 10), r2 = parseInt(mc[4], 10);
-      const c1 = L.colToIndex(mc[1]), c2 = L.colToIndex(mc[3]);
-      const nr1 = mapRow(r1), nr2 = mapRow(r2);
-      if (nr1 === undefined || nr2 === undefined) continue;
+      if (expanded.has(mc[0])) continue; // размножен выше, №111
+      ranges.push([L.colToIndex(mc[1]), L.colToIndex(mc[3]), parseInt(mc[2], 10), parseInt(mc[4], 10)]);
+    }
+    ranges.forEach(function (rg) {
+      const c1 = rg[0], c2 = rg[1];
+      const nr1 = mapRow(rg[2]), nr2 = mapRow(rg[3]);
+      if (nr1 === undefined || nr2 === undefined) return;
       // край, стоявший ровно на удалённом столбце, поджимаем внутрь мёрджа
       const n1 = (c1 === dropCol0) ? remapColumn(c1 + 1, dropCol0) : remapColumn(c1, dropCol0);
       const n2 = (c2 === dropCol0) ? remapColumn(c2 - 1, dropCol0) : remapColumn(c2, dropCol0);
-      if (n1 === null || n2 === null || n1 > n2 || nr1 > nr2) continue;
+      if (n1 === null || n2 === null || n1 > n2 || nr1 > nr2) return;
       refs.push(L.indexToCol(n1) + nr1 + ':' + L.indexToCol(n2) + nr2);
-    }
+    });
     sheetXml = sheetXml.slice(0, mcM.index) +
       (refs.length
         ? '<mergeCells count="' + refs.length + '">' +
